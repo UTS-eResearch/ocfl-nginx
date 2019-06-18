@@ -4,9 +4,14 @@
 // convert an oid to an array representing a path in the
 // ocfl repository (the pairtree)
 
-function oid_to_ocfl(oid) {
+function oid_pairtree(oid) {
     return oid.match(/.{1,2}/g);
 }
+
+
+
+
+
 
 // entry-point from nginx
 
@@ -27,13 +32,6 @@ function ocfl_resolve(req) {
     }
 }
 
-function basic_rewrite(r) {
-    r.warn("basic_rewrite was called");
-    r.internalRedirect("/rewritten/");
-}
 
-function throw_error(r) {
-    r.warn("throw_error was called");
-    r.return(500, "Throw an error");
-}
+
 
