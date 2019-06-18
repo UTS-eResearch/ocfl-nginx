@@ -1,12 +1,12 @@
-datapubs-nginx
-==============
+ocfl-nginx
+==========
 
-A repository for the js and config for the internal and external data publication ngix servers
+JavaScript utilities for serving OCFL repositories via nginx.
 
 ## Contents
 
-- datapubs.conf - nginx config file
-- ofcl.js - javascript to map incoming URLs to ocfl object paths
+- ocfl.conf - nginx config file
+- ocfl.js - javascript to map incoming URLs to ocfl object paths
 
 
 
