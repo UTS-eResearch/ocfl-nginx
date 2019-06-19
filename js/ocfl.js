@@ -11,7 +11,7 @@
 function ocfl(req) {
     var url_path = req.variables.ocfl_path;
     var ocfl_repo = req.variables.ocfl_repo;
-    var pattern = new RegExp(url_path + '/([^/]+)(.*)$');
+    var pattern = new RegExp(url_path + '/([^/]+)/(.*)$');
     var match = req.uri.match(pattern);
     if( !match ) {
         req.error("Match failed " + pattern);
