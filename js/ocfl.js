@@ -1,5 +1,8 @@
 // ocfl utilities
 
+var fs = require('fs');
+
+
 // ocfl(request)
 //
 // entry-point from nginx
@@ -8,25 +11,89 @@
 // ocfl_path - the part of the URL path before the OID in the incoming URL
 // ocfl_repo - the nginx location mapped to the actual ocfl file root
 
+
 function ocfl(req) {
-    var url_path = req.variables.ocfl_path;
-    var ocfl_repo = req.variables.ocfl_repo;
-    var pattern = new RegExp(url_path + '/([^/]+)/(.*)$');
-    var match = req.uri.match(pattern);
-    if( !match ) {
-        req.error("Match failed " + pattern);
-        req.return(500, "ocfl - url match failed");
-    } else {
-        var oid = match[1];
-        var content = match[2];
-        var object = pairtree(oid);
-        var opath = [ ocfl_repo ].concat(object).join('/');
-        var newroute = '/' + opath + '/v1/content/' + content;
-        req.warn("Remapped " + oid + " to " + newroute);
-        req.internalRedirect(newroute);
-    }
+  var url_path = req.variables.ocfl_path;
+  var ocfl_repo = req.variables.ocfl_repo;
+  var pattern = new RegExp(url_path + '/([^/]+)/(.*)$');
+  var match = req.uri.match(pattern);
+  if( !match ) {
+    req.error("Match failed " + pattern);
+    req.return(500, "ocfl - url match failed");
+  } else {
+    var oid = match[1];
+    var content = match[2];
+    var object = pairtree(oid);
+    var opath = [ ocfl_repo ].concat(object).join('/');
+    var newroute = '/' + opath + '/v1/content/' + content;
+    req.warn("Remapped " + oid + " to " + newroute);
+    req.internalRedirect(newroute);
+  }
 }
 
+
+// version with versions
+
+function ocfl_versioned(req) {
+  var url_path = req.variables.ocfl_path;
+  var ocfl_repo = req.variables.ocfl_repo;
+  var ocfl_files = req.variables.ocfl_files;
+  var pattern = new RegExp(url_path + '/([^/]+)/(.*)$');
+  var match = req.uri.match(pattern);
+  if( !match ) {
+    req.error("Match failed " + pattern);
+    req.return(500, "ocfl - url match failed");
+  } else {
+    var oid = match[1];
+    var content = match[2];
+    var object = pairtree(oid);
+    var opath = [ ocfl_repo ].concat(object).join('/');
+
+    var vpath = version(req, ocfl_files + '/' + opath, content, null);
+    if( vpath ) {
+      var newroute = '/' + opath + '/' + vpath;
+      req.warn("Remapped " + oid + " to " + newroute);
+      req.internalRedirect(newroute);
+    } else {
+      req.error("Version not found");
+      req.return(500, "version not found");
+    }
+  }
+}
+
+
+
+function version(req, object, payload, version) {
+  var inv = load_inventory(req, object);
+  if( ! inv ) {
+    return null;
+  }
+  var v = version || inv.head;
+  var state = inv.versions[v].state;
+  var hash = Object.keys(state).filter(function(h) {
+    return ( state[h].includes(payload) )
+  });
+  req.warn("Lookup " + payload + " in version " + v);
+  req.warn("Got results " + JSON.stringify(hash));
+  if( hash.length > 0 ) {
+    return inv.manifest[hash[0]];
+  } else {
+    return null;
+  }
+}
+
+
+function load_inventory(req, object) {
+  var ifile = object + 'inventory.json';
+  try {
+    var contents = fs.readFileSync(ifile);
+    return JSON.parse(contents);
+  } catch(e) {
+    req.error("Error reading " + ifile);
+    req.error(e);
+    return null;
+  }
+}
 
 
 // adapted from npm pairtree
@@ -72,5 +139,8 @@ function pairtree(id, separator) {
   }
   return path;
 }
+
+
+
 
 

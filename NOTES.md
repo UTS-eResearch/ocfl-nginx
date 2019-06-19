@@ -6,51 +6,28 @@ auth_request allows all incoming requests to be forwarded to an authentication e
 
 
 
-NOTES
-=====
+## Versions
 
-Design notes for the nginx / ocfl bridge
+very simple versioning plan
 
-In nginx: map an ID to an ocfl path
+incoming URL
 
-ie /staging/297fdfa5441fd39bb4a25f3563d96b3f -> /ROOT/staging/29/7f/df/a5/44/1f/d3/9b/b4/a2/5f/35/63/d9/6b/3f/
+https://server/datasets/OID/path/to/payload.jpg
 
-In stash: to write the URL to the metadata record, the same transformation (almost):
+the handler splits this to:
 
-297fdfa5441fd39bb4a25f3563d96b3f, staging -> https://DATADOMAIN/PATH/staging/297fdfa5441fd39bb4a25f3563d96b3f
+   OID -> get ocfl path
+   path/to/payload.jpg -> the content
 
-## Parameters
+need a function which reads the manifest and resolves path/to/payload.jpg to a versioned path
+like v4/content/path/to/payload.jpg
 
-- Object ID
-- Repository file root
-- Repository URL base  https://DATADOMAIN/PATH
+then do an internalRedirect to
 
-filename(ID) => FILESYSTEM + idtoocfl(ID)
-url(ID)      => URLBASE + idtoocfl(ID)
+datasets_ocfl/OCFLPATH/v4/content/path/to/payload.jpg
 
-This assumes that all repositories are like
 
-$FILESYSTEM/staging
-$FILESYSTEM/public
 
-which is OK for now.
+http://localhost:8080/staging/99aeeba852c43991a917d541de5b8a64/CATALOG.html
 
-## Config
-
-In the datapubs.js config file for stash:
-
-    "sites": {
-  	  "staging": {
-        "dir": "/publication/staging",
-        "url": "http://localhost:8080/staging"
-      },
-  	  "public": {
-        "dir": "/publication/public",
-        "url": "http://localhost:8080/public"
-      }
-    }
-
-This covers FILESYSTEM and URLBASE and is more flexible 
-
-## shared code
-
+http://localhost:8080/staging/99aeeba852c43991a917d541de5b8a64/blobboid.gif
