@@ -15,6 +15,7 @@ var fs = require('fs');
 function ocfl(req) {
   var url_path = req.variables.ocfl_path;
   var ocfl_repo = req.variables.ocfl_repo;
+  var index_file = req.variables.ocfl_index_file;
   var pattern = new RegExp(url_path + '/([^/]+)/(.*)$');
   var match = req.uri.match(pattern);
   if( !match ) {
@@ -22,7 +23,7 @@ function ocfl(req) {
     req.return(500, "ocfl - url match failed");
   } else {
     var oid = match[1];
-    var content = match[2];
+    var content = match[2] || index_file;
     var object = pairtree(oid);
     var opath = [ ocfl_repo ].concat(object).join('/');
     var newroute = '/' + opath + '/v1/content/' + content;
@@ -38,6 +39,7 @@ function ocfl_versioned(req) {
   var url_path = req.variables.ocfl_path;
   var ocfl_repo = req.variables.ocfl_repo;
   var ocfl_files = req.variables.ocfl_files;
+  var index_file = req.variables.ocfl_index_file;
   var pattern = new RegExp(url_path + '/([^/]+)/(.*)$');
   var match = req.uri.match(pattern);
   if( !match ) {
@@ -45,7 +47,7 @@ function ocfl_versioned(req) {
     req.return(500, "ocfl - url match failed");
   } else {
     var oid = match[1];
-    var content = match[2];
+    var content = match[2] || index_file;
     var object = pairtree(oid);
     var opath = [ ocfl_repo ].concat(object).join('/');
 
