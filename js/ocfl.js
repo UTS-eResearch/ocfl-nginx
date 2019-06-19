@@ -49,14 +49,16 @@ function ocfl_versioned(req) {
     var object = pairtree(oid);
     var opath = [ ocfl_repo ].concat(object).join('/');
 
-    var vpath = version(req, ocfl_files + '/' + opath, content, null);
+    var v = req.args.version;
+
+    var vpath = version(req, ocfl_files + '/' + opath, content, v);
     if( vpath ) {
       var newroute = '/' + opath + '/' + vpath;
       req.warn("Remapped " + oid + " to " + newroute);
       req.internalRedirect(newroute);
     } else {
       req.error("Version not found");
-      req.return(500, "version not found");
+      req.return(440, "Version not found");
     }
   }
 }
@@ -66,18 +68,22 @@ function ocfl_versioned(req) {
 function version(req, object, payload, version) {
   var inv = load_inventory(req, object);
   if( ! inv ) {
+    req.error("Couldn't load inventory for " + object);
     return null;
   }
   var v = version || inv.head;
+  if( ! inv.versions[v] ) {
+    req.error("Couldn't find version " + v);
+    return null;
+  }
   var state = inv.versions[v].state;
   var hash = Object.keys(state).filter(function(h) {
     return ( state[h].includes(payload) )
   });
-  req.warn("Lookup " + payload + " in version " + v);
-  req.warn("Got results " + JSON.stringify(hash));
   if( hash.length > 0 ) {
     return inv.manifest[hash[0]];
   } else {
+    req.error("Couldn't find resource " + payload + " in version " + v);
     return null;
   }
 }
