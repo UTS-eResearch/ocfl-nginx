@@ -1,24 +1,30 @@
 ocfl-nginx
 ==========
 
-JavaScript utilities for serving OCFL repositories via nginx.
+Utilities for serving OCFL objects via nginx.
+
+This package doesn't provide indexing or discovery - it's a proof-of-concept of whether it's possible to resolve ocfl ids and versions using as little JavaScript as possible.
+
+It's nowhere near production-ready and will probably not scale to datasets with many files or versions.
 
 ## Contents
 
-- ocfl.conf - nginx config file
-- ocfl.js - javascript to map incoming URLs to ocfl object paths
+    conf.d/ocfl.conf - nginx config file
+    js/ocfl.js - javascript to map incoming URLs to ocfl object paths
+
+## Prerequsites
+
+Requires nginx with the njs JavaScript extension installed.
 
 ## Roadmap
 
-### UTS Stash MVP
+### Docker
 
-Resolving oids to OCFL paths to serve datasets as part of the UTS reseach data catalogue toolchain.
+Publish a Docker image which installs the ocfl config and javascript on an ngnix container.
 
 ### Versions
 
-Static versions - write out copies or symlinks of each version
-
-Explore feasibility of dynamic versions, which would do internal nginx redirects to the latest version of a file based on the manifest
+Put a proper test framework around versioning.
 
 Expose versions to the web using a protocol such as memento
 
