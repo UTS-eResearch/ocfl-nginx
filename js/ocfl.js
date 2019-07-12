@@ -40,19 +40,21 @@ function ocfl_versioned(req) {
   var ocfl_repo = req.variables.ocfl_repo;
   var ocfl_files = req.variables.ocfl_files;
   var index_file = req.variables.ocfl_index_file;
-  var pattern = new RegExp(url_path + '/([^/]+)/(.*)$');
+  var pattern = new RegExp(url_path + '/([^/\\.]+)(\\.v\\d+)?/(.*)$');
   var match = req.uri.match(pattern);
   if( !match ) {
     req.error("Match failed " + pattern);
     req.return(500, "ocfl - url match failed");
   } else {
     var oid = match[1];
-    var content = match[2] || index_file;
+    var v = match[2];
+    var content = match[3] || index_file;
     var object = pairtree(oid);
     var opath = [ ocfl_repo ].concat(object).join('/');
 
-    var v = req.args.version;
-
+    if( v ) {
+      v = v.substr(1);
+    }
     var vpath = version(req, ocfl_files + '/' + opath, content, v);
     if( vpath ) {
       var newroute = '/' + opath + '/' + vpath;
