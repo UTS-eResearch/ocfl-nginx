@@ -49,15 +49,16 @@ function ocfl(req) {
 // see if this can return json or html
 
 function repository_index(req) {
+  var ocfl_root = req.variables.ocfl_root;
   var ocfl_repo = req.variables.ocfl_repo;
-  var repo_index = req.variables.ocfl_repo_index;
-  var index_route = '/' + ocfl_repo + '/' + repo_index;
+  var repo_index = req.variables.ocfl_repo_index;  
+  var index_file = ocfl_root + '/' + ocfl_repo + '/' + repo_index;
 
   // this could be a subrequest for an index.json which is
   // generated from a database
 
   try {
-    var js = fs.readFileSync(index_json);
+    var js = fs.readFileSync(index_file);
     var index = JSON.parse(js);
      
     var html = "<html><body>";
@@ -69,13 +70,10 @@ function repository_index(req) {
     html += '</body>';
     req.return(200, html);
   } catch(e) {
-    req.error("Error reading " + index_json);
+    req.error("Error reading " + index_file);
     req.error(e);
     return null;
   }
-}
-
-
 }
 
 
@@ -117,6 +115,8 @@ function load_inventory(req, object) {
     return null;
   }
 }
+
+
 
 
 
