@@ -2,7 +2,6 @@
 
 var fs = require('fs');
 
-
 // ocfl(request)
 //
 // entry-point from nginx
@@ -12,39 +11,18 @@ var fs = require('fs');
 // ocfl_repo - the nginx location mapped to the actual ocfl file root
 
 
+
 function ocfl(req) {
+
   var url_path = req.variables.ocfl_path;
   var ocfl_repo = req.variables.ocfl_repo;
-  var index_file = req.variables.ocfl_index_file;
-  var pattern = new RegExp(url_path + '/([^/]+)/(.*)$');
-  var match = req.uri.match(pattern);
-  if( !match ) {
-    req.error("Match failed " + pattern);
-    req.return(500, "ocfl - url match failed");
-  } else {
-    var oid = match[1];
-    var content = match[2] || index_file;
-    var object = pairtree(oid);
-    var opath = [ ocfl_repo ].concat(object).join('/');
-    var newroute = '/' + opath + '/v1/content/' + content;
-    req.warn("Remapped " + oid + " to " + newroute);
-    req.internalRedirect(newroute);
-  }
-}
+  var ocfl_root = req.variables.ocfl_root;
+  var index_file = req.variables.ocfl_autoindex;
 
-
-// version with versions
-
-function ocfl_versioned(req) {
-  var url_path = req.variables.ocfl_path;
-  var ocfl_repo = req.variables.ocfl_repo;
-  var ocfl_files = req.variables.ocfl_files;
-  var index_file = req.variables.ocfl_index_file;
   var pattern = new RegExp(url_path + '/([^/\\.]+)(\\.v\\d+)?/(.*)$');
   var match = req.uri.match(pattern);
   if( !match ) {
-    req.error("Match failed " + pattern);
-    req.return(500, "ocfl - url match failed");
+    repository_index(req);
   } else {
     var oid = match[1];
     var v = match[2];
@@ -55,7 +33,7 @@ function ocfl_versioned(req) {
     if( v ) {
       v = v.substr(1);
     }
-    var vpath = version(req, ocfl_files + '/' + opath, content, v);
+    var vpath = version(req, ocfl_root + '/' + opath, content, v);
     if( vpath ) {
       var newroute = '/' + opath + '/' + vpath;
       req.warn("Remapped " + oid + " to " + newroute);
@@ -66,6 +44,40 @@ function ocfl_versioned(req) {
     }
   }
 }
+
+
+// see if this can return json or html
+
+function repository_index(req) {
+  var ocfl_repo = req.variables.ocfl_repo;
+  var repo_index = req.variables.ocfl_repo_index;
+  var index_route = '/' + ocfl_repo + '/' + repo_index;
+
+  // this could be a subrequest for an index.json which is
+  // generated from a database
+
+  try {
+    var js = fs.readFileSync(index_json);
+    var index = JSON.parse(js);
+     
+    var html = "<html><body>";
+
+    Object.keys(js).sort().forEach((k) => {
+        html += '<p><a href="/' + k + '/">' + k + '</a></p>'
+    });
+
+    html += '</body>';
+    req.return(200, html);
+  } catch(e) {
+    req.error("Error reading " + index_json);
+    req.error(e);
+    return null;
+  }
+}
+
+
+}
+
 
 
 
@@ -97,13 +109,16 @@ function load_inventory(req, object) {
   var ifile = object + 'inventory.json';
   try {
     var contents = fs.readFileSync(ifile);
-    return JSON.parse(contents);
+    var ijs = JSON.parse(contents);
+    
   } catch(e) {
     req.error("Error reading " + ifile);
     req.error(e);
     return null;
   }
 }
+
+
 
 
 // adapted from npm pairtree
