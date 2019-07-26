@@ -5,28 +5,42 @@ var fs = require('fs');
 // ocfl(request)
 //
 // entry-point from nginx
-//
-// expects two parameters set on the request variables:
-// ocfl_path - the part of the URL path before the OID in the incoming URL
-// ocfl_repo - the nginx location mapped to the actual ocfl file root
 
 
+// Note: the regexp here requires URLs like
+
+// /REPO_NAME/OID.vN/path/to/content
+
+// ie the REPO_NAME can't have '/' in it
 
 function ocfl(req) {
 
-  var url_path = req.variables.ocfl_path;
   var ocfl_repo = req.variables.ocfl_repo;
   var ocfl_root = req.variables.ocfl_root;
   var index_file = req.variables.ocfl_autoindex;
 
-  var pattern = new RegExp(url_path + '/([^/\\.]+)(\\.v\\d+)?/(.*)$');
-  var match = req.uri.match(pattern);
-  if( !match ) {
-    repository_index(req);
+  var parts = req.uri.split('/');
+  var repo = parts[1];
+  var oidv = parts[2];
+  var content = parts.slice(3).join('/');
+
+  if( !repo ) {
+    req.error("Couldn't find match for " + req.uri);
+    req.return(440, "Resource not found");
+    return;
+  } else if( !oidv ) {
+    repository_index(req, repo);
   } else {
-    var oid = match[1];
-    var v = match[2];
-    var content = match[3] || index_file;
+
+    var pattern = new RegExp('^([^/\\.]+)(\\.v\\d+)?$');
+    var match = oidv.match(pattern);
+    if( !match ) {
+      req.error("Couldn't match oid " + oidv);
+      req.return(440, "Resource not found");
+      return
+    }
+    var oid = match[0];
+    var v = match[1];
     var object = pairtree(oid);
     var opath = [ ocfl_repo ].concat(object).join('/');
 
@@ -48,7 +62,8 @@ function ocfl(req) {
 
 // see if this can return json or html
 
-function repository_index(req) {
+function repository_index(req, url_path) {
+
   var ocfl_root = req.variables.ocfl_root;
   var ocfl_repo = req.variables.ocfl_repo;
   var repo_index = req.variables.ocfl_repo_index;  
@@ -63,8 +78,8 @@ function repository_index(req) {
      
     var html = "<html><body>";
 
-    Object.keys(js).sort().forEach((k) => {
-        html += '<p><a href="/' + k + '/">' + k + '</a></p>'
+    Object.keys(index).sort().forEach((k) => {
+        html += '<p><a href="/' + url_path + '/' + k + '/">' + k + '</a></p>'
     });
 
     html += '</body>';
@@ -115,9 +130,10 @@ function version(req, object, payload, version) {
 function load_inventory(req, object) {
   var ifile = object + 'inventory.json';
   try {
+    req.log("Trying to read " + ifile);
     var contents = fs.readFileSync(ifile);
     var ijs = JSON.parse(contents);
-    
+    return ijs;
   } catch(e) {
     req.error("Error reading " + ifile);
     req.error(e);
