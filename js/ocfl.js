@@ -68,7 +68,7 @@ function repository_index(req) {
     });
 
     html += '</body>';
-    req.return(200, html);
+    send_html(req, html);
   } catch(e) {
     req.error("Error reading " + index_file);
     req.error(e);
@@ -76,6 +76,15 @@ function repository_index(req) {
   }
 }
 
+
+function send_html(req, html) {
+  req.status = 200;
+  req.headersOut['Content-Type'] = "text/html; charset=utf-8";
+  req.headersOut['Content-Length'] = html.length;
+  req.sendHeader();
+  req.send(html);
+  req.finish();
+}
 
 
 
