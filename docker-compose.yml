@@ -1,0 +1,30 @@
+version: '3.1'
+
+networks:
+  main:
+
+services:
+  nginx-ocfl:
+    build: .
+    ports:
+      - "8080:8080"
+    expose:
+      - "8080"
+    networks:
+      - main
+    volumes:
+      - "./test_repos/:/etc/share/nginx/html"
+
+  solr:
+    image: solr
+    ports:
+      - "8983:8983"
+    expose:
+      - "8983"
+    networks:
+      - main
+    volumes:
+      - "./test_solr/:/opt/solr/server/solr/ocflcore"
+    command: solr-precreate ocflcore
+      
+

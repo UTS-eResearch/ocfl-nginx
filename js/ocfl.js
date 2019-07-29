@@ -2,7 +2,7 @@
 
 var fs = require('fs');
 
-var MAX_INDEX_LENGTH = 80;
+var MAX_INDEX_LENGTH = 120;
 
 // ocfl(request)
 //
@@ -85,7 +85,7 @@ function repository_index(req, url_path) {
     var js = fs.readFileSync(index_file);
     var index = JSON.parse(js);
      
-    var html = "<html><body>";
+    var html = "<html><body><p>Hello, Docker</p>";
 
     index.forEach((e) => {
       var entry = index_map(e);
