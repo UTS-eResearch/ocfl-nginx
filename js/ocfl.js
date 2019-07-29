@@ -2,6 +2,8 @@
 
 var fs = require('fs');
 
+var MAX_INDEX_LENGTH = 80;
+
 // ocfl(request)
 //
 // entry-point from nginx
@@ -39,14 +41,21 @@ function ocfl(req) {
       req.return(440, "Resource not found");
       return
     }
-    var oid = match[0];
-    var v = match[1];
+    var oid = match[1];
+    var v = match[2];
     var object = pairtree(oid);
     var opath = [ ocfl_repo ].concat(object).join('/');
 
     if( v ) {
       v = v.substr(1);
     }
+
+    if( !content ) {
+      content = index_file;
+    }
+
+    req.error("oid: " + oid + "; v: " + v + "; object: " + opath);
+    
     var vpath = version(req, ocfl_root + '/' + opath, content, v);
     if( vpath ) {
       var newroute = '/' + opath + '/' + vpath;
@@ -78,8 +87,10 @@ function repository_index(req, url_path) {
      
     var html = "<html><body>";
 
-    Object.keys(index).sort().forEach((k) => {
-        html += '<p><a href="/' + url_path + '/' + k + '/">' + k + '</a></p>'
+    index.forEach((e) => {
+      var entry = index_map(e);
+      var url = '/' + url_path + '/' + entry[0] + '/'; 
+        html += '<p><a href="' + url + '/">' + entry[1] + '</a></p>'
     });
 
     html += '</body>';
@@ -91,6 +102,17 @@ function repository_index(req, url_path) {
   }
 }
 
+
+// indexmap takes an index entry and returns an id and a chunk of HTML
+// to be rendered as the index
+
+function index_map(entry) {
+  var html = entry['name'] + ': ' + entry['description'];
+  if( html.length > MAX_INDEX_LENGTH ) {
+    html = html.slice(0, MAX_INDEX_LENGTH) + '...';
+  }
+  return [ entry['@id'], html ];
+}
 
 function send_html(req, html) {
   req.status = 200;
