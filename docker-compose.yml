@@ -26,5 +26,6 @@ services:
     volumes:
       - "./test_solr/:/opt/solr/server/solr/ocflcore"
     command: solr-precreate ocflcore
-      
+    logging:
+      driver: none
 

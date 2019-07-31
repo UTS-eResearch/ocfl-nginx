@@ -15,12 +15,15 @@ var MAX_INDEX_LENGTH = 120;
 
 // ie the REPO_NAME can't have '/' in it
 
+
 function ocfl(req) {
 
   var ocfl_repo = req.variables.ocfl_repo;
   var ocfl_root = req.variables.ocfl_root;
   var index_file = req.variables.ocfl_autoindex;
 
+  req.error("Incoming uri: '" + req.uri + "'");
+  
   var parts = req.uri.split('/');
   var repo = parts[1];
   var oidv = parts[2];
@@ -30,71 +33,68 @@ function ocfl(req) {
     req.error("Couldn't find match for " + req.uri);
     req.return(440, "Resource not found");
     return;
-  } else if( !oidv ) {
-    repository_index(req, repo);
-  } else {
-
-    var pattern = new RegExp('^([^/\\.]+)(\\.v\\d+)?$');
-    var match = oidv.match(pattern);
-    if( !match ) {
-      req.error("Couldn't match oid " + oidv);
-      req.return(440, "Resource not found");
-      return
-    }
-    var oid = match[1];
-    var v = match[2];
-    var object = pairtree(oid);
-    var opath = [ ocfl_repo ].concat(object).join('/');
-
-    if( v ) {
-      v = v.substr(1);
-    }
-
-    if( !content ) {
-      content = index_file;
-    }
-
-    req.error("oid: " + oid + "; v: " + v + "; object: " + opath);
-    
-    var vpath = version(req, ocfl_root + '/' + opath, content, v);
-    if( vpath ) {
-      var newroute = '/' + opath + '/' + vpath;
-      req.warn("Remapped " + oid + " to " + newroute);
-      req.internalRedirect(newroute);
-    } else {
-      req.error("Version not found");
-      req.return(440, "Version not found");
-    }
   }
+
+  load_index(req, ( index ) => {
+    if( !oidv ) {
+      send_html(req, render_index(index, repo));
+    } else {
+
+      var pattern = new RegExp('^([^\\.]+)(\\.v\\d+)?$');
+      var match = oidv.match(pattern);
+      if( !match ) {
+        req.error("Couldn't match oid " + oidv);
+        req.return(440, "Resource not found");
+        return
+      }
+      var oid = decodeURIComponent(match[1]);
+      var v = match[2];
+
+      var indexo = index_lookup(index, oid);
+
+      if( indexo ) {
+        var opath = [ ocfl_repo ].concat(indexo['path']).join('/');
+        if( v ) {
+          v = v.substr(1);
+        }
+
+        if( !content ) {
+          content = index_file;
+        }
+
+        var vpath = version(req, ocfl_root + '/' + opath, content, v);
+        if( vpath ) {
+          var newroute = '/' + opath + '/' + vpath;
+          req.warn("Remapped " + oid + " to " + newroute);
+          req.internalRedirect(newroute);
+        } else {
+          req.error("Version not found");
+          req.return(440, "Version not found");
+        }
+      } else {
+        req.error("OID " + oid + " not found in index");
+        req.return(440, "Object not found");
+      }
+    }
+  });
 }
 
 
-// see if this can return json or html
+// doing this with a callback so that it's compatible with
+// what I'll have to do for the solr version even though it's
+// readFileSync
 
-function repository_index(req, url_path) {
-
+function load_index(req, callback) {
   var ocfl_root = req.variables.ocfl_root;
   var ocfl_repo = req.variables.ocfl_repo;
   var repo_index = req.variables.ocfl_repo_index;  
   var index_file = ocfl_root + '/' + ocfl_repo + '/' + repo_index;
 
-  // this could be a subrequest for an index.json which is
-  // generated from a database
-
   try {
     var js = fs.readFileSync(index_file);
     var index = JSON.parse(js);
-     
-    var html = "<html><body><p>Hello, Docker</p>";
-
-    index.forEach((e) => {
-      var entry = index_map(e);
-      var url = '/' + url_path + '/' + entry[0] + '/'; 
-        html += '<p><a href="' + url + '/">' + entry[1] + '</a></p>'
-    });
-
-    html += '</body>';
-    send_html(req, html);
+    callback(index);
+    return;
   } catch(e) {
     req.error("Error reading " + index_file);
     req.error(e);
@@ -103,15 +103,40 @@ function repository_index(req, url_path) {
 }
 
 
-// indexmap takes an index entry and returns an id and a chunk of HTML
-// to be rendered as the index
+function index_lookup(index, id) {
+  var match = index.filter(i => i['uri_id'] === id);
+  if( match ) {
+    return match[0];
+  } else {
+    return null;
+  }
+}
+
+function render_index(index, url_path) {
+
+  var html = "<html><body><p>ocfl-nginx bridge v1.0.0</p>\n";
+
+  index.forEach((e) => {
+    var entry = index_map(e);
+    var url = '/' + url_path + '/' + entry[0] + '/'; 
+    html += '<p><a href="' + url + '">' + entry[1] + '</a></p>\n'
+  });
+
+  html += '</body>\n';
+
+  return html;
+}
+
+
+// indexmap takes an index entry and returns a URL path (based on
+// the id) and HTML for the link
 
 function index_map(entry) {
-  var html = entry['name'] + ': ' + entry['description'];
-  if( html.length > MAX_INDEX_LENGTH ) {
-    html = html.slice(0, MAX_INDEX_LENGTH) + '...';
-  }
-  return [ entry['@id'], html ];
+  var html = entry['name'];
+  // if( html.length > MAX_INDEX_LENGTH ) {
+  //   html = html.slice(0, MAX_INDEX_LENGTH) + '...';
+  // }
+  return [ entry['uri_id'], html ];
 }
 
 function send_html(req, html) {
@@ -122,6 +147,7 @@ function send_html(req, html) {
   req.send(html);
   req.finish();
 }
+
 
 
 
@@ -150,7 +176,11 @@ function version(req, object, payload, version) {
 
 
 function load_inventory(req, object) {
-  var ifile = object + 'inventory.json';
+  var ifile = object;
+  if( ifile.slice(-1) !== '/' ) {
+    ifile += '/';
+  }
+  ifile += 'inventory.json';
   try {
     req.log("Trying to read " + ifile);
     var contents = fs.readFileSync(ifile);
@@ -215,4 +245,18 @@ function pairtree(id, separator) {
 
 
 
+
+
+// testbed for the solr handler
+
+var SOLR = "/solr/ocflcore/select";
+
+// basic - just passes through
+
+function solr_bridge(req) {
+  req.warn("Routing subrequest to solr proxy via " + SOLR);
+  req.subrequest(SOLR, req.variables.args, (res) => {
+    req.return(res.status, res.responseBody);
+  });
+}
 
