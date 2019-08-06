@@ -17,7 +17,7 @@ function ocfl(req) {
   var match = req.uri.match(pattern);
   if( !match ) {
     req.error("Match failed " + pattern);
-    req.return(500, "ocfl - url match failed");
+    req.internalRedirect("/50x.html");
   } else {
     var oid = match[1];
     var v = match[2];
@@ -35,7 +35,7 @@ function ocfl(req) {
       req.internalRedirect(newroute);
     } else {
       req.error("Version not found");
-      req.return(440, "Version not found");
+      req.internalRedirect("/404.html");
     }
   }
 }
