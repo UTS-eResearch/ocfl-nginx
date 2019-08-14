@@ -114,7 +114,7 @@ function index_lookup(index, id) {
 
 function render_index(index, url_path) {
 
-  var html = "<html><body><p>ocfl-nginx bridge v1.0.0</p>\n";
+  var html = "<html><body><p>ocfl-nginx bridge v1.0.2</p>\n";
 
   index.forEach((e) => {
     var entry = index_map(e);
