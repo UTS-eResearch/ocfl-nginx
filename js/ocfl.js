@@ -13,6 +13,8 @@ function ocfl(req) {
   var ocfl_repo = req.variables.ocfl_repo;
   var ocfl_files = req.variables.ocfl_files;
   var index_file = req.variables.ocfl_index_file;
+  var ocfl_versions = req.variables.ocfl_versions;
+
   var pattern = new RegExp(url_path + '/([^/\\.]+)(\\.v\\d+)?/(.*)$');
   var match = req.uri.match(pattern);
   if( !match ) {
@@ -25,8 +27,12 @@ function ocfl(req) {
     var object = pairtree(oid);
     var opath = [ ocfl_repo ].concat(object).join('/');
 
-    if( v ) {
-      v = v.substr(1);
+    if( ocfl_versions !== "on" ) {
+      v = undefined
+    } else {
+      if( v ) {
+        v = v.substr(1);
+      }
     }
     var vpath = version(req, ocfl_files + '/' + opath, content, v);
     if( vpath ) {
