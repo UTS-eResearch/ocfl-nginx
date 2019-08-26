@@ -1,0 +1,31 @@
+version: '3.1'
+networks:
+  main:
+
+services:
+  nginx:
+    image: mikelynch/nginx-ocfl:v1.0.5
+    ports:
+      - "8080:8080"
+    restart: always
+    volumes:
+      - "./test_repos:/usr/share/nginx/html"
+    expose:
+      - "8080"
+
+  solr:
+    image: solr:7.4
+    ports:
+      - "8983:8983"
+    expose:
+      - "8983"
+    volumes:
+      - "solr_data:/opt/solr/server/solr/mycores"
+    entrypoint:
+      - docker-entrypoint.sh
+      - solr-precreate
+      - mycore
+
+volumes:
+  solr_data:
+

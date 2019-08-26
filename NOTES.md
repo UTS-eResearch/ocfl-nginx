@@ -5,7 +5,6 @@
 auth_request allows all incoming requests to be forwarded to an authentication endpoint
 
 
-
 ## Versions
 
 Basic versioning is now available with the ocfl_versioned handler
