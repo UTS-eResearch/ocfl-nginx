@@ -2,11 +2,10 @@
 
 var fs = require('fs');
 
-var MAX_INDEX_LENGTH = 120;
 
-// ocfl(request)
+// ocfl_json(request)
 //
-// entry-point from nginx
+// original entry-point from nginx for repos with a static json index
 
 
 // Note: the regexp here requires URLs like
@@ -16,14 +15,16 @@ var MAX_INDEX_LENGTH = 120;
 // ie the REPO_NAME can't have '/' in it
 
 
+
+
+
 function ocfl(req) {
 
   var ocfl_repo = req.variables.ocfl_repo;
   var ocfl_root = req.variables.ocfl_root;
+  var ocfl_solr = req.variables.ocfl_solr;
   var index_file = req.variables.ocfl_autoindex;
 
-  req.error("Incoming uri: '" + req.uri + "'");
-  
   var parts = req.uri.split('/');
   var repo = parts[1];
   var oidv = parts[2];
@@ -35,7 +36,64 @@ function ocfl(req) {
     return;
   }
 
-  load_index(req, ( index ) => {
+  if( oidv ) {
+    req.error("solr oid lookup not done yet");
+    req.return(440, "Resource not found");
+    return;
+  }
+
+
+  // get pagination from req.variables.args
+  var query = "fl=name,path,uri_id&q=record_type_s:Dataset"
+  req.subrequest(ocfl_solr + '/select', { args: query }, ( res ) => {
+    send_html(req, '<pre>' + res.responseBody + '</pre>');
+  })
+
+ 
+}
+
+
+
+
+
+
+// testbed for the solr handler
+
+var SOLR = "/solr/ocflcore/select";
+
+// basic - just passes through
+
+function solr_bridge(req) {
+  req.warn("Routing subrequest to solr proxy via " + SOLR);
+  req.subrequest(SOLR, req.variables.args, (res) => {
+    req.return(res.status, res.responseBody);
+  });
+}
+
+
+
+
+
+
+
+function ocfl_json(req) {
+
+  var ocfl_repo = req.variables.ocfl_repo;
+  var ocfl_root = req.variables.ocfl_root;
+  var index_file = req.variables.ocfl_autoindex;
+
+  var parts = req.uri.split('/');
+  var repo = parts[1];
+  var oidv = parts[2];
+  var content = parts.slice(3).join('/');
+
+  if( !repo ) {
+    req.error("Couldn't find match for " + req.uri);
+    req.return(440, "Resource not found");
+    return;
+  }
+
+  load_index_json(req, ( index ) => {
     if( !oidv ) {
       send_html(req, render_index(index, repo));
     } else {
@@ -80,11 +138,8 @@ function ocfl(req) {
 }
 
 
-// doing this with a callback so that it's compatible with
-// what I'll have to do for the solr version even though it's
-// readFileSync
 
-function load_index(req, callback) {
+function load_index_json(req, callback) {
   var ocfl_root = req.variables.ocfl_root;
   var ocfl_repo = req.variables.ocfl_repo;
   var repo_index = req.variables.ocfl_repo_index;  
@@ -101,6 +156,10 @@ function load_index(req, callback) {
     return null;
   }
 }
+
+
+
+
 
 
 function index_lookup(index, id) {
@@ -246,17 +305,4 @@ function pairtree(id, separator) {
 
 
 
-
-// testbed for the solr handler
-
-var SOLR = "/solr/ocflcore/select";
-
-// basic - just passes through
-
-function solr_bridge(req) {
-  req.warn("Routing subrequest to solr proxy via " + SOLR);
-  req.subrequest(SOLR, req.variables.args, (res) => {
-    req.return(res.status, res.responseBody);
-  });
-}
 
