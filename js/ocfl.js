@@ -16,15 +16,12 @@ var fs = require('fs');
 
 
 
-
+// parse the URI and either serve the index or an ocfl_object
 
 function ocfl(req) {
 
-  var ocfl_repo = req.variables.ocfl_repo;
-  var ocfl_root = req.variables.ocfl_root;
   var ocfl_solr = req.variables.ocfl_solr;
-  var index_file = req.variables.ocfl_autoindex;
-
+ 
   var parts = req.uri.split('/');
   var repo = parts[1];
   var oidv = parts[2];
@@ -35,168 +32,101 @@ function ocfl(req) {
     req.return(440, "Resource not found");
     return;
   }
+
+  req.error("in ocfl: repo = " + repo);
 
   if( oidv ) {
-    req.error("solr oid lookup not done yet");
+    ocfl_object(req, repo, oidv, content)
+  } else {
+
+    // get pagination from req.variables.args
+    var query = "fl=name,path,uri_id&q=record_type_s:Dataset"
+    req.subrequest(ocfl_solr + '/select', { args: query }, ( res ) => {
+      var solrJson = JSON.parse(res.responseBody);
+      var docs = solrJson['response']['docs'];
+      var start = solrJson['response']['start'];
+      send_html(req, render_index(repo, start, docs));
+    });
+  }
+}
+
+// parse a versioned url_id, look it up in solr to find the path
+// and then return the versioned ocfl content
+
+function ocfl_object(req, repo, oidv, content) {
+
+  var pattern = new RegExp('^([^\\.]+)(\\.v\\d+)?$');
+  var match = oidv.match(pattern);
+  if( !match ) {
+    req.error("Couldn't match oid " + oidv);
     req.return(440, "Resource not found");
-    return;
+    return
   }
 
+  var oid = match[1];
+  var v = match[2];
 
-  // get pagination from req.variables.args
-  var query = "fl=name,path,uri_id&q=record_type_s:Dataset"
-  req.subrequest(ocfl_solr + '/select', { args: query }, ( res ) => {
-    send_html(req, '<pre>' + res.responseBody + '</pre>');
-  })
-
- 
-}
-
-
-
-
-
-
-// testbed for the solr handler
-
-var SOLR = "/solr/ocflcore/select";
-
-// basic - just passes through
-
-function solr_bridge(req) {
-  req.warn("Routing subrequest to solr proxy via " + SOLR);
-  req.subrequest(SOLR, req.variables.args, (res) => {
-    req.return(res.status, res.responseBody);
-  });
-}
-
-
-
-
-
-
-
-function ocfl_json(req) {
-
+  var ocfl_solr = req.variables.ocfl_solr;
   var ocfl_repo = req.variables.ocfl_repo;
   var ocfl_root = req.variables.ocfl_root;
   var index_file = req.variables.ocfl_autoindex;
 
-  var parts = req.uri.split('/');
-  var repo = parts[1];
-  var oidv = parts[2];
-  var content = parts.slice(3).join('/');
+  var query = "fl=path&q=uri_id:" + oid;
 
-  if( !repo ) {
-    req.error("Couldn't find match for " + req.uri);
-    req.return(440, "Resource not found");
-    return;
-  }
-
-  load_index_json(req, ( index ) => {
-    if( !oidv ) {
-      send_html(req, render_index(index, repo));
-    } else {
-
-      var pattern = new RegExp('^([^\\.]+)(\\.v\\d+)?$');
-      var match = oidv.match(pattern);
-      if( !match ) {
-        req.error("Couldn't match oid " + oidv);
-        req.return(440, "Resource not found");
-        return
+  req.subrequest(ocfl_solr + '/select', { args: query }, ( res ) => {
+    var solrJson = JSON.parse(res.responseBody);
+    if( solrJson['response']['docs'].length === 1 ) {
+      var p = solrJson['response']['docs'][0]['path'];
+      var opath = [ ocfl_repo ].concat(p).join('/');
+      
+      if( v ) {
+        v = v.substr(1);
       }
-      var oid = decodeURIComponent(match[1]);
-      var v = match[2];
 
-      var indexo = index_lookup(index, oid);
+      if( !content ) {
+        content = index_file;
+      }
 
-      if( indexo ) {
-        var opath = [ ocfl_repo ].concat(indexo['path']).join('/');
-        if( v ) {
-          v = v.substr(1);
-        }
-
-        if( !content ) {
-          content = index_file;
-        }
-
-        var vpath = version(req, ocfl_root + '/' + opath, content, v);
-        if( vpath ) {
-          var newroute = '/' + opath + '/' + vpath;
-          req.warn("Remapped " + oid + " to " + newroute);
-          req.internalRedirect(newroute);
-        } else {
-          req.error("Version not found");
-          req.return(440, "Version not found");
-        }
+      var vpath = version(req, ocfl_root + '/' + opath, content, v);
+      if( vpath ) {
+        var newroute = '/' + opath + '/' + vpath;
+        req.warn("Remapped " + oid + " to " + newroute);
+        req.internalRedirect(newroute);
       } else {
-        req.error("OID " + oid + " not found in index");
-        req.return(440, "Object not found");
+        req.error("Version not found");
+        req.return(440, "Version not found");
       }
+    } else {
+      req.error("OID " + oid + " not found in index");
+      req.return(440, "Object not found");
     }
+  
   });
 }
 
 
 
-function load_index_json(req, callback) {
-  var ocfl_root = req.variables.ocfl_root;
-  var ocfl_repo = req.variables.ocfl_repo;
-  var repo_index = req.variables.ocfl_repo_index;  
-  var index_file = ocfl_root + '/' + ocfl_repo + '/' + repo_index;
 
-  try {
-    var js = fs.readFileSync(index_file);
-    var index = JSON.parse(js);
-    callback(index);
-    return;
-  } catch(e) {
-    req.error("Error reading " + index_file);
-    req.error(e);
-    return null;
-  }
-}
+// pass this the repostory, the page start index and a list of objects
+// with the properties url_id and name (name is an array)
 
 
+function render_index(repo, start, links) {
 
+  var html = "<html><body><p>ocfl-nginx bridge v1.0.3</p>\n";
+  html += "<p>Start: " + start + "</p>";
 
-
-
-function index_lookup(index, id) {
-  var match = index.filter(i => i['uri_id'] === id);
-  if( match ) {
-    return match[0];
-  } else {
-    return null;
-  }
-}
-
-function render_index(index, url_path) {
-
-  var html = "<html><body><p>ocfl-nginx bridge v1.0.2</p>\n";
-
-  index.forEach((e) => {
-    var entry = index_map(e);
-    var url = '/' + url_path + '/' + entry[0] + '/'; 
-    html += '<p><a href="' + url + '">' + entry[1] + '</a></p>\n'
+  links.forEach((l) => {
+    var url = '/' + repo + '/' + l['uri_id'] + '/'; 
+    html += '<p><a href="' + url + '">' + l['name'][0] + '</a></p>\n'
   });
 
   html += '</body>\n';
 
   return html;
+
 }
 
-
-// indexmap takes an index entry and returns a URL path (based on
-// the id) and HTML for the link
-
-function index_map(entry) {
-  var html = entry['name'];
-  // if( html.length > MAX_INDEX_LENGTH ) {
-  //   html = html.slice(0, MAX_INDEX_LENGTH) + '...';
-  // }
-  return [ entry['uri_id'], html ];
-}
 
 function send_html(req, html) {
   req.status = 200;
