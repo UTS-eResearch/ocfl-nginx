@@ -13,7 +13,7 @@ services:
     networks:
       - main
     volumes:
-      - "./test_repos/:/etc/share/nginx/html"
+      - "./test_repos/:/etc/share/nginx/html/ocfl"
 
   solr:
     image: solr

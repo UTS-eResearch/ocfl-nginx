@@ -15,6 +15,7 @@ var fs = require('fs');
 // ie the REPO_NAME can't have '/' in it
 
 
+var PAGE = 20;
 
 // parse the URI and either serve the index or an ocfl_object
 
@@ -33,22 +34,36 @@ function ocfl(req) {
     return;
   }
 
-  req.error("in ocfl: repo = " + repo);
-
   if( oidv ) {
     ocfl_object(req, repo, oidv, content)
   } else {
 
-    // get pagination from req.variables.args
-    var query = "fl=name,path,uri_id&q=record_type_s:Dataset"
+    var start = parse_pagination(req.variables.args);
+    var query = "q=record_type_s:Dataset&rows=" + String(PAGE) + "&start=" + start + "&fl=name,path,uri_id&"
+    req.error("solr query " + query);
     req.subrequest(ocfl_solr + '/select', { args: query }, ( res ) => {
       var solrJson = JSON.parse(res.responseBody);
       var docs = solrJson['response']['docs'];
       var start = solrJson['response']['start'];
-      send_html(req, render_index(repo, start, docs));
+      var numFound = solrJson['response']['numFound'];
+      send_html(req, render_index(repo, numFound, start, PAGE, docs));
     });
   }
 }
+
+
+function parse_pagination(args) {
+  if( ! args ) {
+    return '0';
+  }
+  var start_re = new RegExp('^start=(\\d+)');
+  var match = args.match(start_re);
+  if( match ) {
+    return match[1];
+  }
+  return '0';
+}
+
 
 // parse a versioned url_id, look it up in solr to find the path
 // and then return the versioned ocfl content
@@ -111,20 +126,56 @@ function ocfl_object(req, repo, oidv, content) {
 // with the properties url_id and name (name is an array)
 
 
-function render_index(repo, start, links) {
+function render_index(repo, numFound, start, page, links) {
 
-  var html = "<html><body><p>ocfl-nginx bridge v1.0.3</p>\n";
-  html += "<p>Start: " + start + "</p>";
+  var html = '<html><head><link rel="stylesheet" type="text/css" href="/assets/ocfl.css"></head>\n' +
+    '<body>\n' +
+    '<div id="header">\n' +
+    '<div id="title">OCFL Repository: ' + repo + '</div>\n' + 
+    '<div id="nav">' + nav_links(repo, numFound, start, page) + '</div>\n' +
+    '</div>' + 
+    '<div id="body">\n';
 
   links.forEach((l) => {
     var url = '/' + repo + '/' + l['uri_id'] + '/'; 
-    html += '<p><a href="' + url + '">' + l['name'][0] + '</a></p>\n'
+    html += '<div class="item"><a href="' + url + '">' + l['name'][0] + '</a></div>\n'
   });
 
-  html += '</body>\n';
+  html += '</div>\n' +
+  '<div id="footer"><a href="https://github.com/UTS-eResearch/ocfl-nginx">ocfl-nginx bridge v1.0.3</a></div>\n' +
+  '</body>\n</html>\n';
 
   return html;
 
+}
+
+
+function nav_links(repo, numFound, start, page) {
+  var html = '';
+  var url = '/' + repo + '/'
+  var last = start + page - 1;
+  var next = undefined;
+  if( last > numFound - 1 ) {
+    last = numFound - 1;
+  } else {
+    next = start + page;
+  }
+  if( start > 0 ) {
+    var prev = start - page;
+    if( prev < 0 ) {
+      prev = 0;
+    }
+    if( prev > 0 ) {
+      html += '<a href="' + url + '?start=' + String(prev) + '">&lt;--</a> ';
+    } else {
+      html += '<a href="' + url + '">&lt;--</a> '; 
+    }
+  }
+  html += String(start + 1) + '-' + String(last + 1) + ' of ' + String(numFound);
+  if( next ) {
+    html += ' <a href="' + url + '?start=' + String(next) + '">--&gt;</a>'
+  }
+  return html;
 }
 
 
