@@ -1,29 +1,29 @@
 version: '3.1'
 
+networks:
+  main:
+
 services:
-  nginx:
-    image: mikelynch/nginx-ocfl:v1.0.5
+  nginx-ocfl:
+    build: .
     ports:
       - "8080:8080"
-    restart: always
-    volumes:
-      - "./test_repos:/usr/share/nginx/html"
     expose:
       - "8080"
+    networks:
+      - main
+    volumes:
+      - "./test_repos/:/etc/share/nginx/html/ocfl"
 
   solr:
-    image: solr:7.4
+    image: solr
     ports:
       - "8983:8983"
     expose:
       - "8983"
+    networks:
+      - main
     volumes:
-      - "solr_data:/opt/solr/server/solr/mycores"
-    entrypoint:
-      - docker-entrypoint.sh
-      - solr-precreate
-      - ocfl
-
-volumes:
-  solr_data:
+      - "./test_solr/:/opt/solr/server/solr/ocflcore"
+    command: solr-precreate ocflcore
 

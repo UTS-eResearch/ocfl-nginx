@@ -28,6 +28,8 @@ Put a proper test framework around versioning.
 
 Expose versions to the web using a protocol such as memento
 
+### Basic index
 
+Provide an index (like nginx's auto-index) when pointing at the base of an ocfl repository
 
 
