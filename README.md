@@ -1,26 +1,26 @@
 ocfl-nginx
 ==========
 
-Utilities for serving OCFL objects via nginx.
-
-This package doesn't provide indexing or discovery - it's a proof-of-concept of whether it's possible to resolve ocfl ids and versions using as little JavaScript as possible.
-
-It's nowhere near production-ready and will probably not scale to datasets with many files or versions.
+nginx-js script for serving an ocfl repository with a solr index.
 
 ## Contents
 
-    conf.d/ocfl.conf - nginx config file
-    js/ocfl.js - javascript to map incoming URLs to ocfl object paths
+    conf.d/ocfl.conf
+    js/ocfl.js
+    assets/ocfl.css
+    Dockerfile
+    docker-compose.yml
 
 ## Prerequsites
 
 Requires nginx with the njs JavaScript extension installed.
 
+## Deployment
+
+Components: a solr container and an nginx-ocfl container.
+
+
 ## Roadmap
-
-### Docker
-
-Publish a Docker image which installs the ocfl config and javascript on an ngnix container.
 
 ### Versions
 
@@ -28,8 +28,5 @@ Put a proper test framework around versioning.
 
 Expose versions to the web using a protocol such as memento
 
-### Basic index
-
-Provide an index (like nginx's auto-index) when pointing at the base of an ocfl repository
 
 
