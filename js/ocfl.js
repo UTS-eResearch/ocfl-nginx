@@ -3,7 +3,7 @@
 var fs = require('fs');
 
 
-var PAGE_SIZE = 8;
+var PAGE_SIZE = 20;
 
 // parse the URI and either serve the index or an ocfl_object
 
