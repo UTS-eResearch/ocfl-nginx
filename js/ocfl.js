@@ -3,7 +3,7 @@
 var fs = require('fs');
 
 
-var PAGE = 20;
+var PAGE_SIZE = 8;
 
 // parse the URI and either serve the index or an ocfl_object
 
@@ -26,16 +26,23 @@ function ocfl(req) {
   if( oidv ) {
     ocfl_object(req, repo, oidv, content)
   } else {
-
-    var start = parse_pagination(req.variables.args);
-    var query = solr_query(license, { q: "*:*", fl: [ 'id', 'name', 'path', 'uri_id' ] });
+    var argvs = parse_args(req.variables.args || "", [ 'start', 'format', 'fields' ]);
+    req.error("argvs: " +  JSON.stringify(argvs));
+    var start = argvs['start'] || '0';
+    var format = argvs['format'] || 'html';
+    var fields = [ 'id', 'name', 'path', 'uri_id' ];
+    if( format === 'json' && argvs['fields'] ) {
+      fields = argvs['fields'].split(',');
+    }
+    var query = solr_query(license, { start: start, q: "*:*", fl: fields });
 
     req.subrequest(ocfl_solr + '/select', { args: query }, ( res ) => {
       var solrJson = JSON.parse(res.responseBody);
-      var docs = solrJson['response']['docs'];
-      var start = solrJson['response']['start'];
-      var numFound = solrJson['response']['numFound'];
-      send_html(req, render_index(repo, numFound, start, PAGE, docs));
+      if( format === 'json' ) {
+        send_json(req, solrJson);
+      } else {
+        send_html(req, render_index(repo, solrJson));
+      }
     });
   }
 }
@@ -46,20 +53,25 @@ function solr_query(license, options) {
     "fq=" + encodeURIComponent("license:" + license ) + "&" +
     "q=" + encodeURIComponent(options['q']) + '&' +
     "fl=" + encodeURIComponent(options['fl'].join(','));
+  if( options['start'] ) {
+    query += "&start=" + options['start'];
+  }
   return query;
 }
 
 
-function parse_pagination(args) {
-  if( ! args ) {
-    return '0';
-  }
-  var start_re = new RegExp('^start=(\\d+)');
-  var match = args.match(start_re);
-  if( match ) {
-    return match[1];
-  }
-  return '0';
+// this is nasty
+
+function parse_args(args, vars) {
+  var values = {};
+  vars.forEach((v) => {
+    var start_re = new RegExp(v + '=([^&]+)');
+    var match = args.match(start_re);
+    if( match ) {
+      values[v] = match[1];
+    }
+  });
+  return values;
 }
 
 
@@ -127,23 +139,26 @@ function ocfl_object(req, repo, oidv, content) {
 
 
 
-// pass this the repostory, the page start index and a list of objects
-// with the properties url_id and name (name is an array)
+// pass this the repostory and the JSON from solr
 
 
-function render_index(repo, numFound, start, page, links) {
+function render_index(repo, solrJson) {
+
+  var docs = solrJson['response']['docs'];
+  var start = solrJson['response']['start'];
+  var numFound = solrJson['response']['numFound'];
 
   var html = '<html><head><link rel="stylesheet" type="text/css" href="/assets/ocfl.css"></head>\n' +
     '<body>\n' +
     '<div id="header">\n' +
     '<div id="title">OCFL Repository: ' + repo + '</div>\n' + 
-    '<div id="nav">' + nav_links(repo, numFound, start, page) + '</div>\n' +
+    '<div id="nav">' + nav_links(repo, numFound, start) + '</div>\n' +
     '</div>' + 
     '<div id="body">\n';
 
-  links.forEach((l) => {
-    var url = '/' + repo + '/' + l['uri_id'] + '/'; 
-    html += '<div class="item"><a href="' + url + '">' + l['name'][0] + '</a></div>\n'
+  docs.forEach((d) => {
+    var url = '/' + repo + '/' + d['uri_id'] + '/'; 
+    html += '<div class="item"><a href="' + url + '">' + d['name'][0] + '</a></div>\n'
   });
 
   html += '</div>\n' +
@@ -155,18 +170,18 @@ function render_index(repo, numFound, start, page, links) {
 }
 
 
-function nav_links(repo, numFound, start, page) {
+function nav_links(repo, numFound, start) {
   var html = '';
   var url = '/' + repo + '/'
-  var last = start + page - 1;
+  var last = start + PAGE_SIZE - 1;
   var next = undefined;
   if( last > numFound - 1 ) {
     last = numFound - 1;
   } else {
-    next = start + page;
+    next = start + PAGE_SIZE;
   }
   if( start > 0 ) {
-    var prev = start - page;
+    var prev = start - PAGE_SIZE;
     if( prev < 0 ) {
       prev = 0;
     }
@@ -193,6 +208,17 @@ function send_html(req, html) {
   req.finish();
 }
 
+
+
+function send_json(req, json) {
+  req.status = 200;
+  var jsonS = JSON.stringify(json);
+  req.headersOut['Content-Type'] = "application/json; charset=utf-8";
+  req.headersOut['Content-Length'] = jsonS.length;
+  req.sendHeader();
+  req.send(jsonS);
+  req.finish();
+}
 
 
 
