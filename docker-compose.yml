@@ -3,11 +3,9 @@ version: '3.1'
 networks:
   main:
 
-# set build to '.' to make local mods
-
 services:
   nginx-ocfl:
-    build: mikelynch/nginx-ocfl:v1.1.0-beta
+    image: mikelynch/nginx-ocfl:v1.1.1-beta
     ports:
       - "8080:8080"
     expose:
