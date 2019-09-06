@@ -14,6 +14,7 @@ services:
       - main
     volumes:
       - "./test_repos/:/etc/share/nginx/html/ocfl"
+      - "../peppermint-portal/build/peppermint/:/etc/share/nginx/html/peppermint"
 
   solr:
     image: solr
