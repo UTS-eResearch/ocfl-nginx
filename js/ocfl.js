@@ -22,7 +22,8 @@ function ocfl(req) {
     req.internalRedirect("/50x.html");
   } else {
     var oid = match[1];
-    var v = match[2];
+    var version_param = req.variables.request_uri.split("?");
+    var v = version_param[1];
     var content = match[3] || index_file;
     var object = pairtree(oid);
     var opath = [ ocfl_repo ].concat(object).join('/');
@@ -31,7 +32,7 @@ function ocfl(req) {
       v = undefined
     } else {
       if( v ) {
-        v = v.substr(1);
+        v = v.substr(2);
       }
     }
     var vpath = version(req, ocfl_files + '/' + opath, content, v);
@@ -66,7 +67,7 @@ function version(req, object, payload, version) {
   if( hash.length > 0 ) {
     return inv.manifest[hash[0]];
   } else {
-    req.error("Couldn't find resource " + payload + " in version " + v);
+    req.error("Couldn't find resource " + payload + " in version " + v + " ocfl_version is " + ocfl_versions + " version: " + version);
     return null;
   }
 }
