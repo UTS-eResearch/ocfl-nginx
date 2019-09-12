@@ -50,6 +50,7 @@ function ocfl(req) {
 
 
 function version(req, object, payload, version) {
+  var ocfl_versions = req.variables.ocfl_versions;
   var inv = load_inventory(req, object);
   if( ! inv ) {
     req.error("Couldn't load inventory for " + object);
