@@ -63,7 +63,7 @@ function version(req, object, payload, version) {
   }
   var state = inv.versions[v].state;
   var hash = Object.keys(state).filter(function(h) {
-    return ( state[h].includes(payload) )
+    return payload.includes(state[h]);
   });
   if( hash.length > 0 ) {
     return inv.manifest[hash[0]];
