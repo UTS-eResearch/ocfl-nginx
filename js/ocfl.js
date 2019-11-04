@@ -19,7 +19,7 @@ function ocfl(req) {
 
   if( !repo ) {
     req.error("Couldn't find match for " + req.uri);
-    req.internalRedirect("/50x.html");
+    req.internalRedirect(req.variables.ocfl_err_not_found);
     return;
   }
 
@@ -84,7 +84,7 @@ function ocfl_object(req, repo, oidv, content) {
   var match = oidv.match(pattern);
   if( !match ) {
     req.error("Couldn't match oid " + oidv);
-    req.return(440, "Resource not found");
+    req.internalRedirect(req.variables.ocfl_err_not_found);
     return
   }
 
@@ -126,11 +126,14 @@ function ocfl_object(req, repo, oidv, content) {
         req.internalRedirect(newroute);
       } else {
         req.error("Version not found");
-        req.internalRedirect("/404.html");
+        req.internalRedirect(req.variables.ocfl_err_not_found);
       }
     } else {
+      // if the oid is well-formed but not in the index, assume
+      // that it's on its way and redirect to a 'come back later'
+      // page
       req.error("OID " + oid + " not found in index");
-      req.internalRedirect("/404.html");
+      req.internalRedirect(req.variables.ocfl_err_pending);
     }
   
   });
@@ -262,57 +265,6 @@ function load_inventory(req, object) {
     req.error(e);
     return null;
   }
-}
-
-
-
-
-
-
-
-
-// adapted from npm pairtree
-
-
-function stringToUtf8ByteArray (str) {
-  str = str.replace(/\r\n/g, '\n');
-  var out = [], p = 0;
-  for (var i = 0; i < str.length; i++) {
-    var c = str.charCodeAt(i);
-    if (c < 128) {
-      out[p++] = c;
-    } else if (c < 2048) {
-      out[p++] = (c >> 6) | 192;
-      out[p++] = (c & 63) | 128;
-    } else {
-      out[p++] = (c >> 12) | 224;
-      out[p++] = ((c >> 6) & 63) | 128;
-      out[p++] = (c & 63) | 128;
-    }
-  }
-  return out;
-}
-
-function pairtree(id, separator) {
-  separator = separator || '/';
-  id = id.replace(/[\"*+,<=>?\\^|]|[^\x21-\x7e]/g, function(c) {
-    c = stringToUtf8ByteArray(c);
-    var ret = '';
-    for (var i=0, l=c.length; i<l; i++) {
-      ret += '^' + c[i].toString(16);
-    }
-    //c = c.charCodeAt(0);
-    //if (c > 255) return ''; // drop characters greater than ff
-    //return '^' + c.toString(16);
-    return ret;
-  });
-  id = id.replace(/\//g, '=').replace(/:/g, '+').replace(/\./g, ',');
-  var path = separator;
-  while (id) {
-    path += id.substr(0, 2) + separator;
-    id = id.substr(2);
-  }
-  return path;
 }
 
 
