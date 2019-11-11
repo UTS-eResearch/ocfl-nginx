@@ -10,7 +10,6 @@ var PAGE_SIZE = 20;
 function ocfl(req) {
 
   var ocfl_solr = req.variables.ocfl_solr;
-  var license = req.variables.default_license;
 
   var parts = req.uri.split('/');
   var repo = parts[1];
@@ -34,7 +33,7 @@ function ocfl(req) {
     if( format === 'json' && argvs['fields'] ) {
       fields = argvs['fields'].split(',');
     }
-    var query = solr_query(license, { start: start, q: "*:*", fl: fields });
+    var query = solr_query({ start: start, q: "*:*", fl: fields });
 
     req.subrequest(ocfl_solr + '/select', { args: query }, ( res ) => {
       var solrJson = JSON.parse(res.responseBody);
@@ -48,9 +47,8 @@ function ocfl(req) {
 }
 
 
-function solr_query(license, options) {
+function solr_query(options) {
   var query = "fq=" + encodeURIComponent("record_type_s:Dataset") + '&' +
-    "fq=" + encodeURIComponent("license:" + license ) + "&" +
     "q=" + encodeURIComponent(options['q']) + '&' +
     "fl=" + encodeURIComponent(options['fl'].join(','));
   if( options['start'] ) {
@@ -58,6 +56,8 @@ function solr_query(license, options) {
   }
   return query;
 }
+
+
 
 
 // this is nasty
@@ -99,10 +99,11 @@ function ocfl_object(req, repo, oidv, content) {
   var license = req.variables.default_license;
 
   
-  var query = solr_query(license, { q: "uri_id:" + oid, fl: [ 'path' ] });
-
+  var query = solr_query({ q: "uri_id:" + oid, fl: [ 'path' ] });
+  req.error("Subrequest " + query)
   req.subrequest(ocfl_solr + '/select', { args: query }, ( res ) => {
     var solrJson = JSON.parse(res.responseBody);
+    req.error("Got back " + solrJson);
     if( solrJson['response']['docs'].length === 1 ) {
       var p = solrJson['response']['docs'][0]['path'];
       var opath = [ ocfl_repo ].concat(p).join('/');
