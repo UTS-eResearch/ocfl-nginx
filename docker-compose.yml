@@ -5,7 +5,8 @@ networks:
 
 services:
   nginx-ocfl:
-    image: mikelynch/nginx-ocfl:v1.1.2-beta
+    build: .
+    # image: mikelynch/nginx-ocfl:v1.1.2 
     ports:
       - "8080:8080"
     expose:
@@ -25,6 +26,6 @@ services:
     networks:
       - main
     volumes:
-      - "./test_solr/:/opt/solr/server/solr/ocflcore"
-    command: solr-precreate ocflcore
+      - "./test_solr/:/opt/solr/server/solr/public_ocfl"
+    command: solr-precreate public_ocfl
 

@@ -3,7 +3,7 @@
 var fs = require('fs');
 
 
-var PAGE_SIZE = 20;
+var DEFAULT_PAGE_SIZE = 10;
 
 // parse the URI and either serve the index or an ocfl_object
 
@@ -33,14 +33,22 @@ function ocfl(req) {
     if( format === 'json' && argvs['fields'] ) {
       fields = argvs['fields'].split(',');
     }
-    var query = solr_query({ start: start, q: "*:*", fl: fields });
+    var page_size = DEFAULT_PAGE_SIZE;
+    if( req.variables.ocfl_page_size ) {
+      page_size = Number(req.variables.ocfl_page_size);
+      if( isNaN(page_size) ) {
+        page_size = DEFAULT_PAGE_SIZE;
+      }
+    } 
+    req.error("page size = " + page_size);
+    var query = solr_query({ start: start, rows: page_size, q: "*:*", fl: fields });
 
     req.subrequest(ocfl_solr + '/select', { args: query }, ( res ) => {
       var solrJson = JSON.parse(res.responseBody);
       if( format === 'json' ) {
         send_json(req, solrJson);
       } else {
-        send_html(req, render_index(repo, solrJson));
+        send_html(req, render_index(repo, solrJson, page_size));
       }
     });
   }
@@ -54,6 +62,9 @@ function solr_query(options) {
   if( options['start'] ) {
     query += "&start=" + options['start'];
   }
+  if( options['rows'] ) {
+    query += "&rows=" + options['rows'];
+  } 
   return query;
 }
 
@@ -146,7 +157,7 @@ function ocfl_object(req, repo, oidv, content) {
 // pass this the repostory and the JSON from solr
 
 
-function render_index(repo, solrJson) {
+function render_index(repo, solrJson, rows) {
 
   var docs = solrJson['response']['docs'];
   var start = solrJson['response']['start'];
@@ -156,7 +167,7 @@ function render_index(repo, solrJson) {
     '<body>\n' +
     '<div id="header">\n' +
     '<div id="title">OCFL Repository: ' + repo + '</div>\n' + 
-    '<div id="nav">' + nav_links(repo, numFound, start) + '</div>\n' +
+    '<div id="nav">' + nav_links(repo, numFound, start, rows) + '</div>\n' +
     '</div>' + 
     '<div id="body">\n';
 
@@ -174,18 +185,18 @@ function render_index(repo, solrJson) {
 }
 
 
-function nav_links(repo, numFound, start) {
+function nav_links(repo, numFound, start, rows) {
   var html = '';
   var url = '/' + repo + '/'
-  var last = start + PAGE_SIZE - 1;
+  var last = start + rows - 1;
   var next = undefined;
   if( last > numFound - 1 ) {
     last = numFound - 1;
   } else {
-    next = start + PAGE_SIZE;
+    next = start + rows;
   }
   if( start > 0 ) {
-    var prev = start - PAGE_SIZE;
+    var prev = start - rows;
     if( prev < 0 ) {
       prev = 0;
     }
