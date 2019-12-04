@@ -3,241 +3,54 @@
 var fs = require('fs');
 
 
-var DEFAULT_PAGE_SIZE = 10;
+// ocfl(request)
+//
+// entry-point from nginx
 
-// parse the URI and either serve the index or an ocfl_object
 
 function ocfl(req) {
-
-  var ocfl_solr = req.variables.ocfl_solr;
-
-  var parts = req.uri.split('/');
-  var repo = parts[1];
-  var oidv = parts[2];
-  var content = parts.slice(3).join('/');
-
-  if( !repo ) {
-    req.error("Couldn't find match for " + req.uri);
-    req.internalRedirect(req.variables.ocfl_err_not_found);
-    return;
-  }
-
-  if( oidv ) {
-    ocfl_object(req, repo, oidv, content)
-  } else {
-    var argvs = parse_args(req.variables.args || "", [ 'start', 'format', 'fields' ]);
-    req.error("argvs: " +  JSON.stringify(argvs));
-    var start = argvs['start'] || '0';
-    var format = argvs['format'] || 'html';
-    var fields = [ 'id', 'name', 'path', 'uri_id' ];
-    if( format === 'json' && argvs['fields'] ) {
-      fields = argvs['fields'].split(',');
-    }
-    var page_size = DEFAULT_PAGE_SIZE;
-    if( req.variables.ocfl_page_size ) {
-      page_size = Number(req.variables.ocfl_page_size);
-      if( isNaN(page_size) ) {
-        page_size = DEFAULT_PAGE_SIZE;
-      }
-    } 
-    req.error("page size = " + page_size);
-    var query = solr_query({ start: start, rows: page_size, q: "*:*", fl: fields });
-
-    req.subrequest(ocfl_solr + '/select', { args: query }, ( res ) => {
-      var solrJson = JSON.parse(res.responseBody);
-      if( format === 'json' ) {
-        send_json(req, solrJson);
-      } else {
-        send_html(req, render_index(repo, solrJson, page_size));
-      }
-    });
-  }
-}
-
-
-function solr_query(options) {
-  var query = "fq=" + encodeURIComponent("record_type_s:Dataset") + '&' +
-    "q=" + encodeURIComponent(options['q']) + '&' +
-    "fl=" + encodeURIComponent(options['fl'].join(','));
-  if( options['start'] ) {
-    query += "&start=" + options['start'];
-  }
-  if( options['rows'] ) {
-    query += "&rows=" + options['rows'];
-  } 
-  return query;
-}
-
-
-
-
-// this is nasty
-
-function parse_args(args, vars) {
-  var values = {};
-  vars.forEach((v) => {
-    var start_re = new RegExp(v + '=([^&]+)');
-    var match = args.match(start_re);
-    if( match ) {
-      values[v] = match[1];
-    }
-  });
-  return values;
-}
-
-
-// parse a versioned url_id, look it up in solr to find the path
-// and then return the versioned ocfl content
-
-function ocfl_object(req, repo, oidv, content) {
-
-  var pattern = new RegExp('^([^\\.]+)(\\.v\\d+)?$');
-  var match = oidv.match(pattern);
-  if( !match ) {
-    req.error("Couldn't match oid " + oidv);
-    req.internalRedirect(req.variables.ocfl_err_not_found);
-    return
-  }
-
-  var oid = match[1];
-  var v = match[2];
-
-  var ocfl_solr = req.variables.ocfl_solr;
+  var url_path = req.variables.ocfl_path;
   var ocfl_repo = req.variables.ocfl_repo;
-  var ocfl_root = req.variables.ocfl_root;
-  var index_file = req.variables.ocfl_autoindex;
+  var ocfl_files = req.variables.ocfl_files;
+  var index_file = req.variables.ocfl_index_file;
   var ocfl_versions = req.variables.ocfl_versions;
-  var license = req.variables.default_license;
 
-  
-  var query = solr_query({ q: "uri_id:" + oid, fl: [ 'path' ] });
-  req.error("Subrequest " + query)
-  req.subrequest(ocfl_solr + '/select', { args: query }, ( res ) => {
-    var solrJson = JSON.parse(res.responseBody);
-    req.error("Got back " + solrJson);
-    if( solrJson['response']['docs'].length === 1 ) {
-      var p = solrJson['response']['docs'][0]['path'];
-      var opath = [ ocfl_repo ].concat(p).join('/');
-      
-      if( ocfl_versions !== "on" ) {
-        v = undefined
-      } else {
-        if( v ) {
-          v = v.substr(1);
-        }
-      }
-
-      if( !content ) {
-        content = index_file;
-      }
-
-      var vpath = version(req, ocfl_root + '/' + opath, content, v);
-      if( vpath ) {
-        var newroute = '/' + opath + '/' + vpath;
-        req.warn("Remapped " + oid + " to " + newroute);
-        req.internalRedirect(newroute);
-      } else {
-        req.error("Version not found");
-        req.internalRedirect(req.variables.ocfl_err_not_found);
-      }
-    } else {
-      // if the oid is well-formed but not in the index, assume
-      // that it's on its way and redirect to a 'come back later'
-      // page
-      req.error("OID " + oid + " not found in index");
-      req.internalRedirect(req.variables.ocfl_err_pending);
-    }
-  
-  });
-}
-
-
-
-
-// pass this the repostory and the JSON from solr
-
-
-function render_index(repo, solrJson, rows) {
-
-  var docs = solrJson['response']['docs'];
-  var start = solrJson['response']['start'];
-  var numFound = solrJson['response']['numFound'];
-
-  var html = '<html><head><link rel="stylesheet" type="text/css" href="/assets/ocfl.css"></head>\n' +
-    '<body>\n' +
-    '<div id="header">\n' +
-    '<div id="title">OCFL Repository: ' + repo + '</div>\n' + 
-    '<div id="nav">' + nav_links(repo, numFound, start, rows) + '</div>\n' +
-    '</div>' + 
-    '<div id="body">\n';
-
-  docs.forEach((d) => {
-    var url = '/' + repo + '/' + d['uri_id'] + '/'; 
-    html += '<div class="item"><a href="' + url + '">' + d['name'][0] + '</a></div>\n'
-  });
-
-  html += '</div>\n' +
-  '<div id="footer"><a href="https://github.com/UTS-eResearch/ocfl-nginx">ocfl-nginx bridge v1.0.3</a></div>\n' +
-  '</body>\n</html>\n';
-
-  return html;
-
-}
-
-
-function nav_links(repo, numFound, start, rows) {
-  var html = '';
-  var url = '/' + repo + '/'
-  var last = start + rows - 1;
-  var next = undefined;
-  if( last > numFound - 1 ) {
-    last = numFound - 1;
+  var pattern = new RegExp(url_path + '/([^/\\.]+)(\\.v\\d+)?/(.*)$');
+  var match = req.uri.match(pattern);
+  if( !match ) {
+    req.error("Match failed " + pattern);
+    req.internalRedirect("/50x.html");
   } else {
-    next = start + rows;
-  }
-  if( start > 0 ) {
-    var prev = start - rows;
-    if( prev < 0 ) {
-      prev = 0;
-    }
-    if( prev > 0 ) {
-      html += '<a href="' + url + '?start=' + String(prev) + '">&lt;--</a> ';
+    var oid = match[1];
+    var version_param = req.variables.request_uri.split("?");
+    var v = version_param[1];
+    var content = match[3] || index_file;
+    var object = pairtree(oid);
+    var opath = [ ocfl_repo ].concat(object).join('/');
+
+    if( ocfl_versions !== "on" ) {
+      v = undefined
     } else {
-      html += '<a href="' + url + '">&lt;--</a> '; 
+      if( v ) {
+        v = v.substr(2);
+      }
+    }
+    var vpath = version(req, ocfl_files + '/' + opath, content, v);
+    if( vpath ) {
+      var newroute = '/' + opath + '/' + vpath;
+      req.warn("Remapped " + oid + " to " + newroute);
+      req.internalRedirect(newroute);
+    } else {
+      req.error("Version not found");
+      req.internalRedirect("/404.html");
     }
   }
-  html += String(start + 1) + '-' + String(last + 1) + ' of ' + String(numFound);
-  if( next ) {
-    html += ' <a href="' + url + '?start=' + String(next) + '">--&gt;</a>'
-  }
-  return html;
-}
-
-
-function send_html(req, html) {
-  req.status = 200;
-  req.headersOut['Content-Type'] = "text/html; charset=utf-8";
-  req.headersOut['Content-Length'] = html.length;
-  req.sendHeader();
-  req.send(html);
-  req.finish();
-}
-
-
-
-function send_json(req, json) {
-  req.status = 200;
-  var jsonS = JSON.stringify(json);
-  req.headersOut['Content-Type'] = "application/json; charset=utf-8";
-  req.headersOut['Content-Length'] = jsonS.length;
-  req.sendHeader();
-  req.send(jsonS);
-  req.finish();
 }
 
 
 
 function version(req, object, payload, version) {
+  var ocfl_versions = req.variables.ocfl_versions;
   var inv = load_inventory(req, object);
   if( ! inv ) {
     req.error("Couldn't load inventory for " + object);
@@ -250,28 +63,22 @@ function version(req, object, payload, version) {
   }
   var state = inv.versions[v].state;
   var hash = Object.keys(state).filter(function(h) {
-    return ( state[h].includes(payload) )
+    return payload.includes(state[h]);
   });
   if( hash.length > 0 ) {
     return inv.manifest[hash[0]];
   } else {
-    req.error("Couldn't find resource " + payload + " in version " + v);
+    req.error("Couldn't find resource " + payload + " in version " + v + " ocfl_version is " + ocfl_versions + " version: " + version);
     return null;
   }
 }
 
 
 function load_inventory(req, object) {
-  var ifile = object;
-  if( ifile.slice(-1) !== '/' ) {
-    ifile += '/';
-  }
-  ifile += 'inventory.json';
+  var ifile = object + 'inventory.json';
   try {
-    req.log("Trying to read " + ifile);
     var contents = fs.readFileSync(ifile);
-    var ijs = JSON.parse(contents);
-    return ijs;
+    return JSON.parse(contents);
   } catch(e) {
     req.error("Error reading " + ifile);
     req.error(e);
@@ -279,6 +86,50 @@ function load_inventory(req, object) {
   }
 }
 
+
+// adapted from npm pairtree
+
+
+function stringToUtf8ByteArray (str) {
+  str = str.replace(/\r\n/g, '\n');
+  var out = [], p = 0;
+  for (var i = 0; i < str.length; i++) {
+    var c = str.charCodeAt(i);
+    if (c < 128) {
+      out[p++] = c;
+    } else if (c < 2048) {
+      out[p++] = (c >> 6) | 192;
+      out[p++] = (c & 63) | 128;
+    } else {
+      out[p++] = (c >> 12) | 224;
+      out[p++] = ((c >> 6) & 63) | 128;
+      out[p++] = (c & 63) | 128;
+    }
+  }
+  return out;
+}
+
+function pairtree(id, separator) {
+  separator = separator || '/';
+  id = id.replace(/[\"*+,<=>?\\^|]|[^\x21-\x7e]/g, function(c) {
+    c = stringToUtf8ByteArray(c);
+    var ret = '';
+    for (var i=0, l=c.length; i<l; i++) {
+      ret += '^' + c[i].toString(16);
+    }
+    //c = c.charCodeAt(0);
+    //if (c > 255) return ''; // drop characters greater than ff
+    //return '^' + c.toString(16);
+    return ret;
+  });
+  id = id.replace(/\//g, '=').replace(/:/g, '+').replace(/\./g, ',');
+  var path = separator;
+  while (id) {
+    path += id.substr(0, 2) + separator;
+    id = id.substr(2);
+  }
+  return path;
+}
 
 
 
