@@ -49,6 +49,7 @@ function ocfl(req) {
 
 
 
+
 function version(req, object, payload, version) {
   var ocfl_versions = req.variables.ocfl_versions;
   var inv = load_inventory(req, object);
@@ -68,9 +69,29 @@ function version(req, object, payload, version) {
   if( hash.length > 0 ) {
     return inv.manifest[hash[0]];
   } else {
-    req.error("Couldn't find resource " + payload + " in version " + v + " ocfl_version is " + ocfl_versions + " version: " + version);
-    return null;
+    return autoindex(req, object, path, inv, v);
   }
+}
+
+// autoindex by filtering the inventory for a path
+// how do we distinguish between a path request with no 
+// content and a non-existent URL? Both not found?
+
+function autoindex(req, object, path, inv, version) {
+  var state = inv.versions[v].state;
+  var path_a = path.split('/');
+
+  var index = Object.keys(state).filter(function(h) {
+    var state_p = state[h].split('/');
+    return path_prefix_match(path_a, state_p);
+  });
+
+  if( index.length > 0 ) {
+    return make_index(index);
+  } else {
+    req.error("autoindex empty");
+    return null;
+  } 
 }
 
 
