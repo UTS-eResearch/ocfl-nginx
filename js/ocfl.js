@@ -73,26 +73,36 @@ function version(req, object, payload, version) {
   }
 }
 
+// autoindex happens inside objects
+
 // autoindex by filtering the inventory for a path
 // how do we distinguish between a path request with no 
 // content and a non-existent URL? Both not found?
 
 function autoindex(req, object, path, inv, version) {
   var state = inv.versions[v].state;
-  var path_a = path.split('/');
 
-  var index = Object.keys(state).filter(function(h) {
-    var state_p = state[h].split('/');
-    return path_prefix_match(path_a, state_p);
+  var index = [];
+
+  Object.keys(state).forEach((hash) => {
+    state[hash].forEach((p) => {
+      if( p.startsWith(path) ) {
+        const rest = p.substring(l).split('/');
+        if( rest.length === 1 ) {   // it's a file
+          index.push(rest[0]);
+        } else {                    // it's a subdirectory
+          index.push(rest[0] + '/');
+        }
+      }
+    });
   });
 
-  if( index.length > 0 ) {
-    return make_index(index);
-  } else {
-    req.error("autoindex empty");
-    return null;
-  } 
+  var links = index.map((i) => { url: i, name: i })
+
+  return page_html(links, null, "autoindex for " + path)
 }
+
+
 
 
 function load_inventory(req, object) {
@@ -152,6 +162,109 @@ function pairtree(id, separator) {
   return path;
 }
 
+
+
+// pass this the repostory and the JSON from solr
+
+
+function solr_index(repo, solrJson, rows) {
+
+  var docs = solrJson['response']['docs'];
+  var start = solrJson['response']['start'];
+  var numFound = solrJson['response']['numFound'];
+
+  var nav = nav_links(repo, numFound, start, rows);
+  var links = docs.map((d) => {
+    url: d['uri_id'],
+    name: d['name']
+  });
+
+  return page_html('OCFL Repository: ' + repo, links, nav);
+}
+
+
+
+
+
+
+
+function page_html(title, links, nav) {
+
+  var html = '<html><head><link rel="stylesheet" type="text/css" href="/assets/ocfl.css"></head>\n' +
+    '<body>\n' +
+    '<div id="header">\n' +
+    '<div id="title">' + title + '</div>\n';
+
+  if( nav ) {
+    html += '<div id="nav">' + nav_links(repo, numFound, start, rows) + '</div>\n';
+  }
+
+  html += '</div>\n<div id="body">\n';
+
+  links.forEach((l) => {
+    var url = '/' + repo + '/' + l['uri']; 
+    html += '<div class="item"><a href="' + url + '">' + d['name'] + '</a></div>\n'
+  });
+
+  html += '</div>\n' +
+  '<div id="footer"><a href="https://github.com/UTS-eResearch/ocfl-nginx">ocfl-nginx bridge v1.0.3</a></div>\n' +
+  '</body>\n</html>\n';
+
+  return html;
+
+
+}
+
+
+function nav_links(repo, numFound, start, rows) {
+  var html = '';
+  var url = '/' + repo + '/'
+  var last = start + rows - 1;
+  var next = undefined;
+  if( last > numFound - 1 ) {
+    last = numFound - 1;
+  } else {
+    next = start + rows;
+  }
+  if( start > 0 ) {
+    var prev = start - rows;
+    if( prev < 0 ) {
+      prev = 0;
+    }
+    if( prev > 0 ) {
+      html += '<a href="' + url + '?start=' + String(prev) + '">&lt;--</a> ';
+    } else {
+      html += '<a href="' + url + '">&lt;--</a> '; 
+    }
+  }
+  html += String(start + 1) + '-' + String(last + 1) + ' of ' + String(numFound);
+  if( next ) {
+    html += ' <a href="' + url + '?start=' + String(next) + '">--&gt;</a>'
+  }
+  return html;
+}
+
+
+function send_html(req, html) {
+  req.status = 200;
+  req.headersOut['Content-Type'] = "text/html; charset=utf-8";
+  req.headersOut['Content-Length'] = html.length;
+  req.sendHeader();
+  req.send(html);
+  req.finish();
+}
+
+
+
+function send_json(req, json) {
+  req.status = 200;
+  var jsonS = JSON.stringify(json);
+  req.headersOut['Content-Type'] = "application/json; charset=utf-8";
+  req.headersOut['Content-Length'] = jsonS.length;
+  req.sendHeader();
+  req.send(jsonS);
+  req.finish();
+}
 
 
 
