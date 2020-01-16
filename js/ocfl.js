@@ -124,8 +124,28 @@ function auto_index(repo, req, oid, inv, v, path) {
 
 // provide a link to all versions of a path
 
-function history(req, inv, path) {
+function history(req, repo, oid, inv, path) {
+  var versions = {};
+  Object.keys(inv.versions).forEach((v) => {
+    var state = inv.versions[v]['state'];
+    var hash = Object.keys(state).filter(function(h) {
+      return state[h].includes(payload);
+    });
+    if( hash ) {
+      versions[v] = hash;
+    }
+  }
+  var links = Object.keys(inv.versions).sort().map((v) => {
+    return { 
+      text: v + ' ' + versions[v],
+      href: version_url(repo, oid, v, path)
+    }
+  });
+}
 
+
+function version_url(repo, oid, v, path) {
+  return repo + '/' + oid + '.' + v + '/' + path;
 }
 
 
