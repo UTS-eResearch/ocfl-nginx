@@ -13,7 +13,6 @@ function ocfl(req) {
   var ocfl_repo = req.variables.ocfl_repo;
   var ocfl_files = req.variables.ocfl_files;
   var index_file = req.variables.ocfl_index_file || '';
-  req.error("index_file = " + index_file);
   var ocfl_versions = req.variables.ocfl_versions;
 
   var pattern = new RegExp(url_path + '/([^/\\.]+)(\\.v\\d+)?/(.*)$');
@@ -29,9 +28,6 @@ function ocfl(req) {
     var content = match[3] || index_file;
     var object = pairtree(oid);
     var opath = [ ocfl_repo ].concat(object).join('/');
-
-    req.error("oid: " + oid);
-    req.error("opath: " + opath);
 
     if( ocfl_versions !== "on" ) {
       v = undefined
@@ -54,9 +50,9 @@ function ocfl(req) {
     }
 
     if( content === '' || content.slice(-1) === '/' ) {
-      auto_index(ocfl_repo, req, inv, v, content);
+      auto_index(ocfl_repo, req, oid, inv, v, content);
     } else {
-      var vpath = version(req, inv, v, content);
+      var vpath = version(req, oid, inv, v, content);
       if( vpath ) {
         var newroute = '/' + opath + '/' + vpath;
         req.warn("Remapped " + oid + " to " + newroute);
@@ -74,15 +70,15 @@ function ocfl(req) {
 
 
 
-function version(req, inv, v, payload) {
+function version(req, oid, inv, v, payload) {
   var state = inv.versions[v]['state'];
   var hash = Object.keys(state).filter(function(h) {
-    return payload.includes(state[h]);
+    return state[h].includes(payload);
   });
   if( hash.length > 0 ) {
     return inv.manifest[hash[0]];
   } else {
-    req.error("Couldn't find payload " + payload + " in " + object + " " + version);
+    req.error("Couldn't find payload " + payload + " in " + oid + "." + v);
     return null;
   }
 }
@@ -93,7 +89,7 @@ function version(req, inv, v, payload) {
 // how do we distinguish between a path request with no 
 // content and a non-existent URL? Both not found?
 
-function auto_index(repo, req, inv, v, path) {
+function auto_index(repo, req, oid, inv, v, path) {
   var state = inv.versions[v]['state'];
 
   var index = {};
@@ -115,12 +111,21 @@ function auto_index(repo, req, inv, v, path) {
   paths.sort();
 
   if( paths.length > 0 ) {
-    var links = paths.map((p) => { return { href: p, text: p } })
-    send_html(req, page_html('Autoindex for ' + path, links, null));
+    var links = paths.map((p) => { return { href: p, text: p } });
+    if( path ) {
+      links.unshift({href: '../', text: "[parent]"});
+    }
+    send_html(req, page_html(oid + '.' + v + '/' + path, links, null));
   } else {
     req.error("No match found for path " + path);
     req.internalRedirect("/404.html");
   } 
+}
+
+// provide a link to all versions of a path
+
+function history(req, inv, path) {
+
 }
 
 
