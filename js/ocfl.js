@@ -15,26 +15,22 @@ function ocfl(req) {
   var index_file = req.variables.ocfl_index_file || '';
   var ocfl_versions = req.variables.ocfl_versions;
 
-  var pattern = new RegExp(url_path + '/([^/\\.]+)(\\.v\\d+)?/(.*)$');
+
+  var pattern = new RegExp(url_path + '/([^/\\.]+)(\\.v\\d+)?/([^?]*)(\\?.*)?$');
   var match = req.uri.match(pattern);
   if( !match ) {
     req.error("Match failed " + pattern);
     req.internalRedirect("/50x.html");
   } else {
     var oid = match[1];
-    var version_param = req.variables.request_uri.split("?");
-    var v = version_param[1];
-
+    var v = match[2];
     var content = match[3] || index_file;
+    var params = match[4];
     var object = pairtree(oid);
     var opath = [ ocfl_repo ].concat(object).join('/');
-
+    var show_hist = req.args['history'];
     if( ocfl_versions !== "on" ) {
       v = undefined
-    } else {
-      if( v ) {
-        v = v.substr(2);
-      }
     }
     var inv = load_inventory(req, ocfl_files + '/' + opath);
     if( ! inv ) {
@@ -43,7 +39,13 @@ function ocfl(req) {
     }
     if( !v ) {
       v = inv.head;
-    } 
+    } else {
+      v = v.slice(1)
+    }
+    if( show_hist && ocfl_versions === "on" ) {
+      history(url_path, req, oid, inv, content);
+    }
+    req.error("Looking for version " + v);
     if( ! inv.versions[v] ) {
       req.error("Couldn't find version " + v);
       req.internalRedirect("/404.html");
@@ -124,28 +126,30 @@ function auto_index(repo, req, oid, inv, v, path) {
 
 // provide a link to all versions of a path
 
-function history(req, repo, oid, inv, path) {
+function history(repo_url, req, oid, inv, path) {
   var versions = {};
   Object.keys(inv.versions).forEach((v) => {
     var state = inv.versions[v]['state'];
     var hash = Object.keys(state).filter(function(h) {
-      return state[h].includes(payload);
+      return state[h].includes(path);
     });
-    if( hash ) {
-      versions[v] = hash;
-    }
-  }
-  var links = Object.keys(inv.versions).sort().map((v) => {
-    return { 
-      text: v + ' ' + versions[v],
-      href: version_url(repo, oid, v, path)
+    if( hash.length > 0 ) {
+      req.error("Adding " + hash  + " to versions");
+      versions[v] = hash[0];
     }
   });
+  var links = Object.keys(versions).sort().map((v) => {
+    return { 
+      text: v + ' ' + versions[v],
+      href: version_url(repo_url, oid, v, path)
+    }
+  });
+  send_html(req, page_html(oid + '/' + path + ' history', links, null));
 }
 
 
 function version_url(repo, oid, v, path) {
-  return repo + '/' + oid + '.' + v + '/' + path;
+  return '/' + repo + '/' + oid + '.' + v + '/' + path;
 }
 
 
