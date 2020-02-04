@@ -22,11 +22,16 @@ Components: a solr container and an nginx-ocfl container.
 
 ## Roadmap
 
+### Automated test
+
 ### Versions
 
 Put a proper test framework around versioning.
 
 Expose versions to the web using a protocol such as memento
 
+### node.js
+
+A variant which uses the same javascript but in a node.js/express app rather than an nginx
 
 
