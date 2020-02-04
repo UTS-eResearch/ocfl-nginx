@@ -19,10 +19,11 @@ Requires nginx with the njs JavaScript extension installed.
 
 Components: a solr container and an nginx-ocfl container.
 
-
 ## Roadmap
 
-### Automated test
+### Authentication and authorisation
+
+### Automated tests
 
 ### Versions
 

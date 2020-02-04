@@ -77,8 +77,11 @@ These can be configured for the whole server (all repos) or for individual repos
 
 ### $ocfl_index_file
 
-This is the equivalent of the nginx `index` directive. If a file with this name is found in the path (and exists in 
-the requested version) it will be returned by default.
+This is the equivalent of the nginx `index` directive. If a file with this name is found in the path (and exists in the requested version) it will be returned by default. If no such file is found, a 404 error is returned.
+
+### $ocfl_autoindex
+
+This is the equivalent of the nginx `autoindex` directive. If it is set to `on`, a directory listing will be generated from the OCFL object inventory.json file for any URL with no content or a path ending in '/'. `$ocfl_index_file` takes precedence over this setting: if the `$ocfl_index_file` is configured but not found, an autoindex listing will not be generated as a fallback.
 
 ### $ocfl_versions
 

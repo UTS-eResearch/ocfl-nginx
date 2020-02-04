@@ -13,8 +13,8 @@ function ocfl(req) {
   var ocfl_repo = req.variables.ocfl_repo;
   var ocfl_files = req.variables.ocfl_files;
   var index_file = req.variables.ocfl_index_file || '';
+  var allow_autoindex = req.variables.ocfl_autoindex || '';
   var ocfl_versions = req.variables.ocfl_versions;
-
 
   var pattern = new RegExp(url_path + '/([^/\\.]+)(\\.v\\d+)?/([^?]*)(\\?.*)?$');
   var match = req.uri.match(pattern);
@@ -31,6 +31,9 @@ function ocfl(req) {
     var show_hist = req.args['history'];
     if( ocfl_versions !== "on" ) {
       v = undefined
+    }
+    if( index_file !== '' ) {
+      allow_autoindex = '';
     }
     var inv = load_inventory(req, ocfl_files + '/' + opath);
     if( ! inv ) {
@@ -50,8 +53,7 @@ function ocfl(req) {
       req.error("Couldn't find version " + v);
       req.internalRedirect("/404.html");
     }
-
-    if( content === '' || content.slice(-1) === '/' ) {
+    if( allow_autoindex === 'on' && ( content === '' || content.slice(-1) === '/' ) ) {
       auto_index(ocfl_repo, req, oid, inv, v, content);
     } else {
       var vpath = version(req, oid, inv, v, content);
