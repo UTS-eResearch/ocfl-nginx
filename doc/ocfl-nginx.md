@@ -75,6 +75,17 @@ Each of the locations representing the OCFL directory needs to set its `root` di
 
 These can be configured for the whole server (all repos) or for individual repos
 
+### $ocfl_err_pending
+
+Relative URL to redirect to when ocfl.js can't find the requested OID. This may be different to a 'resource not found' message because the object may not have been written to the live repository yet
+
+### $ocfl_err_not_found
+
+Relative URL to redirect to in two cases:
+
+- the incoming path can't be parsed by the REPO/OID(.vN)/PATH pattern
+- the repo and oid are found, but the path doesn't exist at the requested version
+
 ### $ocfl_index_file
 
 This is the equivalent of the nginx `index` directive. If a file with this name is found in the path (and exists in the requested version) it will be returned by default. If no such file is found, a 404 error is returned.

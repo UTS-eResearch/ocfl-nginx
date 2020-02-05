@@ -20,7 +20,7 @@ function ocfl(req) {
   var match = req.uri.match(pattern);
   if( !match ) {
     req.error("Match failed " + pattern);
-    req.internalRedirect("/50x.html");
+    req.internalRedirect(req.variables.ocfl_err_not_found);
   } else {
     var oid = match[1];
     var v = match[2];
@@ -37,8 +37,8 @@ function ocfl(req) {
     }
     var inv = load_inventory(req, ocfl_files + '/' + opath);
     if( ! inv ) {
-      req.error("Couldn't load inventory for " + object);
-      req.internalRedirect('/404.html');
+      req.internalRedirect(req.variables.ocfl_err_pending);
+      return;
     }
     if( !v ) {
       v = inv.head;
@@ -51,7 +51,7 @@ function ocfl(req) {
     req.error("Looking for version " + v);
     if( ! inv.versions[v] ) {
       req.error("Couldn't find version " + v);
-      req.internalRedirect("/404.html");
+      req.internalRedirect(req.variables.ocfl_err_not_found);
     }
     if( allow_autoindex === 'on' && ( content === '' || content.slice(-1) === '/' ) ) {
       auto_index(ocfl_repo, req, oid, inv, v, content);
@@ -63,7 +63,7 @@ function ocfl(req) {
         req.internalRedirect(newroute);
       } else {
         req.error("Version not found");
-        req.internalRedirect("/404.html");
+        req.internalRedirect(req.variables.ocfl_err_not_found);
       }
     }
   }
@@ -122,7 +122,7 @@ function auto_index(repo, req, oid, inv, v, path) {
     send_html(req, page_html(oid + '.' + v + '/' + path, links, null));
   } else {
     req.error("No match found for path " + path);
-    req.internalRedirect("/404.html");
+    req.internalRedirect(req.variables.ocfl_err_not_found);
   } 
 }
 
@@ -136,7 +136,7 @@ function history(repo_url, req, oid, inv, path) {
       return state[h].includes(path);
     });
     if( hash.length > 0 ) {
-      req.error("Adding " + hash  + " to versions");
+      req.warn("Adding " + hash  + " to versions");
       versions[v] = hash[0];
     }
   });
