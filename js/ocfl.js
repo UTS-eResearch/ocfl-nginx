@@ -202,7 +202,7 @@ function solr_index(req) {
       page_size = DEFAULT_PAGE_SIZE;
     }
   } 
-  req.warn("page size = " + page_size);
+  var repo = req.variables.ocfl_path;
   var query = solr_query({ start: start, rows: page_size, q: "*:*", fl: fields });
 
   req.subrequest(req.variables.ocfl_solr + '/select', { args: query }, ( res ) => {
