@@ -2,6 +2,7 @@
 
 var fs = require('fs');
 
+var DEFAULT_PAGE_SIZE = 10;
 
 // ocfl(req)
 //
@@ -84,8 +85,6 @@ function ocfl(req) {
     return;
   }
   if( allow_autoindex === 'on' && ( content === '' || content.slice(-1) === '/' ) ) {
-    req.error(JSON.stringify(inv));
-    req.error(v);
     var index = path_autoindex(inv, v, content);
     if( index ) {
       send_html(req, page_html(oid + '.' + v + '/' + content, index, null));
@@ -186,11 +185,106 @@ function find_version(inv, v, content) {
 // solr_index(req)
 //
 // Generates a top-level autoindex with pagination based on the solr
-// index
+// index and calls send_html to return it to the user
 
 
 function solr_index(req) {
-  send_html(req, page_html('Solr index', [], null));  
+  var start = req.args['start'] || '0';
+  var format = req.args['format'] || 'html';
+  var fields = [ 'id', 'name', 'path', 'uri_id' ];
+  if( format === 'json' && req.args['fields'] ) {
+    fields = req.args['fields'].split(',');
+  }
+  var page_size = DEFAULT_PAGE_SIZE;
+  if( req.variables.ocfl_page_size ) {
+    page_size = Number(req.variables.ocfl_page_size);
+    if( isNaN(page_size) ) {
+      page_size = DEFAULT_PAGE_SIZE;
+    }
+  } 
+  req.warn("page size = " + page_size);
+  var query = solr_query({ start: start, rows: page_size, q: "*:*", fl: fields });
+
+  req.subrequest(req.variables.ocfl_solr + '/select', { args: query }, ( res ) => {
+    try {
+      var solrJson = JSON.parse(res.responseBody);
+      req.warn("SOLR results: " + JSON.stringify(solrJson));
+      if( format === 'json' ) {
+        send_json(req, solrJson);
+      } else {
+        var docs = solrJson['response']['docs'];
+        var start = solrJson['response']['start'];
+        var numFound = solrJson['response']['numFound'];
+        var nav = solr_pagination(repo, numFound, start, page_size);
+        var index = docs.map((d) => {
+          return {
+            href: '/' + repo + '/' + d['uri_id'] + '/',
+            text: d['name'][0]
+          }
+        });
+        send_html(req, page_html('Solr index', index, nav));
+      }
+    } catch(e) {
+      not_found("Error in solr index: " + e);
+    }
+  });
+}
+
+// solr_query(options)
+//
+// Builds the solr query from an options object with the following
+// paramenters:
+//
+//   q - the query string
+//   fl - array of fields
+//   start - start record
+//   rows - page size
+
+function solr_query(options) {
+  var query = "fq=" + encodeURIComponent("record_type_s:Dataset") + '&' +
+    "q=" + encodeURIComponent(options['q']) + '&' +
+    "fl=" + encodeURIComponent(options['fl'].join(','));
+  if( options['start'] ) {
+    query += "&start=" + options['start'];
+  }
+  if( options['rows'] ) {
+    query += "&rows=" + options['rows'];
+  } 
+  return query;
+}
+
+
+
+// solr_pagination(repo, numFound, start, rows)
+//
+// Renders the pagination nav links for the solr index.
+
+function solr_pagination(repo, numFound, start, rows) {
+  var html = '';
+  var url = '/' + repo + '/'
+  var last = start + rows - 1;
+  var next = undefined;
+  if( last > numFound - 1 ) {
+    last = numFound - 1;
+  } else {
+    next = start + rows;
+  }
+  if( start > 0 ) {
+    var prev = start - rows;
+    if( prev < 0 ) {
+      prev = 0;
+    }
+    if( prev > 0 ) {
+      html += '<a href="' + url + '?start=' + String(prev) + '">&lt;--</a> ';
+    } else {
+      html += '<a href="' + url + '">&lt;--</a> '; 
+    }
+  }
+  html += String(start + 1) + '-' + String(last + 1) + ' of ' + String(numFound);
+  if( next ) {
+    html += ' <a href="' + url + '?start=' + String(next) + '">--&gt;</a>'
+  }
+  return html;
 }
 
 

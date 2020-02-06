@@ -27,5 +27,7 @@ services:
       - main
     volumes:
       - "./test_solr/:/opt/solr/server/solr/migrate_ocfl"
-    command: solr-precreate migrate_ocfl 
+    command: solr-precreate migrate_ocfl
+    logging:
+      driver: none
 
