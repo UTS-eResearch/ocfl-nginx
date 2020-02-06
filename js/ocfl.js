@@ -18,12 +18,16 @@ function ocfl(req) {
   var allow_autoindex = req.variables.ocfl_autoindex || '';
   var ocfl_versions = req.variables.ocfl_versions;
 
+  req.error(repo_path + ' ' + req.uri);
+
   var parts = parse_uri(repo_path, req.uri);
 
   // uri doesn't match repo_path
 
+  req.error("URI parsed: " + JSON.stringify(parts));
+
   if( !parts ) {
-    not_found("URI doesn't match " + repo_path + " - check config");
+    not_found(req, "URI doesn't match " + repo_path + " - check config");
     return;
   }
 
@@ -32,8 +36,9 @@ function ocfl(req) {
   if( !parts['oid'] ) {
     if( ocfl_solr && allow_autoindex ) {
       solr_index(req);
+      return;
     } else {
-      not_found("OID missing");
+      not_found(req, "OID missing");
       return;
     }
   }
@@ -48,36 +53,44 @@ function ocfl(req) {
 
   var opath = [ ocfl_repo ].concat(object).join('/');
   var show_hist = req.args['history'];
+
   if( ocfl_versions !== "on" ) {
     v = undefined
   }
+
   if( index_file !== '' ) {
     allow_autoindex = '';
   }
+
   var inv = load_inventory(req, ocfl_files + '/' + opath);
+
   if( ! inv ) {
-    pending("Couldn't load inventory for "+ oid);
+    pending(req, "Couldn't load inventory for "+ oid);
     return;
   }
+
   if( !v ) {
     v = inv.head;
   } else {
     v = v.slice(1)
   }
+
   if( show_hist && ocfl_versions === "on" ) {
     history(url_path, req, oid, inv, content);
   }
-  req.error("Looking for version " + v);
+
   if( ! inv.versions[v] ) {
-    not_found("Couldn't find version " + v);
+    not_found(req, "Couldn't find version " + v);
     return;
   }
   if( allow_autoindex === 'on' && ( content === '' || content.slice(-1) === '/' ) ) {
-    var index = path_autoindex(oid, inv, v, content);
+    req.error(JSON.stringify(inv));
+    req.error(v);
+    var index = path_autoindex(inv, v, content);
     if( index ) {
-      send_html(req, page_html(oid + '.' + v + '/' + path, index, null));
+      send_html(req, page_html(oid + '.' + v + '/' + content, index, null));
     } else {
-      not_found("No match found for path " + path);
+      not_found(req, "No match found for path " + path);
     }
   } else {
     var vpath = find_version(inv, v, content);
@@ -86,7 +99,7 @@ function ocfl(req) {
       req.warn("Remapped " + oid + " to " + newroute);
       req.internalRedirect(newroute);
     } else {
-      not_found("Couldn't find content " + content + " in " + oid + "." + v);
+      not_found(req, "Couldn't find content " + content + " in " + oid + "." + v);
     }
   }
 }
@@ -107,11 +120,11 @@ function ocfl(req) {
 
 function parse_uri(repo_path, uri) {
 
-  if ( uri.substr(0, repo_path.length) !== repo_path ) {
+  if ( uri.substr(1, repo_path.length) !== repo_path ) {
     return null;
   }
 
-  var parts = uri.substr(repo_path.length + 1).split('/');
+  var parts = uri.substr(repo_path.length + 2).split('/');
 
   var components = {};
 
@@ -120,7 +133,7 @@ function parse_uri(repo_path, uri) {
   }
 
   var oidparts = parts[0].split('.');
-  components[oid] = oidparts[0];
+  components['oid'] = oidparts[0];
   if( oidparts.length === 2 ) {
     components['version'] = oidparts[1]
   }
@@ -168,6 +181,29 @@ function find_version(inv, v, content) {
     return null;
   }
 }
+
+
+// solr_index(req)
+//
+// Generates a top-level autoindex with pagination based on the solr
+// index
+
+
+function solr_index(req) {
+  send_html(req, page_html('Solr index', [], null));  
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // path_autoindex(inv, v, path)
