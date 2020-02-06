@@ -225,7 +225,7 @@ function solr_index(req) {
         send_html(req, page_html('Solr index', index, nav));
       }
     } catch(e) {
-      not_found("Error in solr index: " + e);
+      not_found(req, "Error fetching or parsing solr index: " + e);
     }
   });
 }
