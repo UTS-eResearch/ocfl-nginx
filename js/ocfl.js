@@ -46,9 +46,12 @@ function ocfl(req) {
   var v = parts['version'];
   var content = parts['content'] || index_file;
 
-  resolve_oid(req, oid, (path) => {
-    if( path ) {
-      serve_path(req, oid, ocfl_repo + '/' + path, v, content);
+  resolve_oid(req, oid, (opath) => {
+    if( opath ) {
+      if( opath.substr(-1) !== '/') {
+        opath += '/';
+      }
+      serve_path(req, oid, ocfl_repo + '/' + opath, v, content);
     }
   });
 
@@ -184,7 +187,8 @@ function resolve_solr(req, oid, success) {
   req.subrequest(ocfl_solr + '/select', { args: query }, ( res ) => {
     var solrJson = JSON.parse(res.responseBody);
     if( solrJson['response']['docs'].length === 1 ) {
-      success(solrJson['response']['docs'][0]['path']);
+      var opath = String(solrJson['response']['docs'][0]['path']);
+      success(opath);
     } else {
       not_found("Solr lookup failed for for " + oid);
     }
