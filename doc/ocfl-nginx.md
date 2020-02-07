@@ -98,6 +98,17 @@ This is the equivalent of the nginx `autoindex` directive. If it is set to `on`,
 
 If this variable is set to `on`, ocfl-nginx will serve earlier versions of files. Otherwise, only the HEAD version will be available, and versions in URLs will be ignored.
 
+### $oclf_resolver
+
+Used to set what method is used to resolve OIDs on the URL to an OCFL path.
+
+- pairtree - use the pairtree algorithm
+- solr - look up the OID in solr
+
+If `solr` is chosen, all access to resources will be mediated through a solr lookup.
+
+If `ocfl_solr` is configured for a repository, the default resolver is `solr`, otherwise it's `pairtree`.
+
 ## Sample config
 
 Sample config for a server with a single ocfl repository.

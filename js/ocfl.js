@@ -13,13 +13,11 @@ function ocfl(req) {
 
   var repo_path = req.variables.ocfl_path;
   var ocfl_repo = req.variables.ocfl_repo;
-  var ocfl_files = req.variables.ocfl_files;
   var ocfl_solr = req.variables.ocfl_solr;
+  var ocfl_resolver = req.variables.ocfl_resolver;
   var index_file = req.variables.ocfl_index_file || '';
   var allow_autoindex = req.variables.ocfl_autoindex || '';
   var ocfl_versions = req.variables.ocfl_versions;
-
-  req.error(repo_path + ' ' + req.uri);
 
   var parts = parse_uri(repo_path, req.uri);
 
@@ -48,11 +46,27 @@ function ocfl(req) {
   var v = parts['version'];
   var content = parts['content'] || index_file;
 
-  // TODO - get the object path via solr if it's defined
+  resolve_oid(req, oid, (path) => {
+    if( path ) {
+      serve_path(req, oid, ocfl_repo + '/' + path, v, content);
+    }
+  });
 
-  var object = pairtree(oid);
+}
 
-  var opath = [ ocfl_repo ].concat(object).join('/');
+// serve_path(req, oid, opath, v, content)
+//
+// This is called after the oid has been resolved via a callback
+// (because oid resolution might be async if it's a solr lookup])
+
+
+function serve_path(req, oid, opath, v, content) {
+
+  var ocfl_files = req.variables.ocfl_files;
+  var index_file = req.variables.ocfl_index_file || '';
+  var allow_autoindex = req.variables.ocfl_autoindex || '';
+  var ocfl_versions = req.variables.ocfl_versions;
+
   var show_hist = req.args['history'];
 
   if( ocfl_versions !== "on" ) {
@@ -89,7 +103,7 @@ function ocfl(req) {
     if( index ) {
       send_html(req, page_html(oid + '.' + v + '/' + content, index, null));
     } else {
-      not_found(req, "No match found for path " + path);
+      not_found(req, "No match found for path " + opath);
     }
   } else {
     var vpath = find_version(inv, v, content);
@@ -141,6 +155,46 @@ function parse_uri(repo_path, uri) {
   }
   return components;
 }
+
+// resolve_oid(req, oid, success)
+//
+// Pick an oid strategy and use it to resolve the oid to a path, then
+// call the success callback with the path if it works.
+// If resolution fails, the resolver function is expected to call not_found
+// with an error message
+
+function resolve_oid(req, oid, success) {
+  if( req.variables.ocfl_resolver === 'solr' ) {
+    resolve_solr(req, oid, success);
+  } else {
+    success(resolve_pairtree(oid));
+  }
+}
+
+
+
+
+function resolve_solr(req, oid, success) {
+
+  var ocfl_solr = req.variables.ocfl_solr;
+  var ocfl_repo = req.variables.ocfl_repo;
+
+  
+  var query = solr_query({ q: "uri_id:" + oid, fl: [ 'path' ] });
+  req.subrequest(ocfl_solr + '/select', { args: query }, ( res ) => {
+    var solrJson = JSON.parse(res.responseBody);
+    if( solrJson['response']['docs'].length === 1 ) {
+      success(solrJson['response']['docs'][0]['path']);
+    } else {
+      not_found("Solr lookup failed for for " + oid);
+    }
+  
+  });
+}
+
+
+
+
 
 
 // load_inventory(req, object)
@@ -408,14 +462,14 @@ function pending(req, message) {
 }
 
 
-// pairtree(id, separator)
+// resolve_pairtree(id, separator)
 //
 // Converts an OID from the incoming URL to a path using the
 // pairtree algorithm.
 //
 // adapted from npm pairtree
 
-function pairtree(id, separator) {
+function resolve_pairtree(id, separator) {
   separator = separator || '/';
   id = id.replace(/[\"*+,<=>?\\^|]|[^\x21-\x7e]/g, function(c) {
     c = stringToUtf8ByteArray(c);
