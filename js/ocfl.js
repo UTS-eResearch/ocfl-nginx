@@ -18,6 +18,7 @@ function ocfl(req) {
   var index_file = req.variables.ocfl_index_file || '';
   var allow_autoindex = req.variables.ocfl_autoindex || '';
   var ocfl_versions = req.variables.ocfl_versions;
+  var ocfl_allow = req.variables.ocfl_allow || '';
 
   var parts = parse_uri(repo_path, req.uri);
 
@@ -45,6 +46,11 @@ function ocfl(req) {
   var oid = parts['oid'];
   var v = parts['version'];
   var content = parts['content'] || index_file;
+
+  if( ocfl_allow && ( content && !content.match(ocfl_allow + '$')) ) {
+    not_found(req, "Content path doesn't match ocfl_allow");
+    return;
+  }
 
   resolve_oid(req, oid, (opath) => {
     if( opath ) {
@@ -148,10 +154,10 @@ function parse_uri(repo_path, uri) {
     return components;
   }
 
-  var oidparts = parts[0].split('.');
+  var oidparts = parts[0].split('.v');
   components['oid'] = oidparts[0];
   if( oidparts.length === 2 ) {
-    components['version'] = oidparts[1]
+    components['version'] = 'v' + oidparts[1]
   }
   if( parts.length > 1 ) {
     components['content'] = parts.slice(1).join('/');
@@ -178,19 +184,23 @@ function resolve_oid(req, oid, success) {
 
 
 function resolve_solr(req, oid, success) {
-
+  req.error("resolve_solr");
   var ocfl_solr = req.variables.ocfl_solr;
   var ocfl_repo = req.variables.ocfl_repo;
 
-  
-  var query = solr_query({ q: "uri_id:" + oid, fl: [ 'path' ] });
+  var esc_oid = oid.replace(' ', '\\ ');
+
+  var query = solr_query({ q: "uri_id:" + esc_oid, fl: [ 'path' ] });
+  req.error("oid: '" + oid + "'");
+  req.error("esc_oid: '" + esc_oid + "'");
+  req.error("Solr lookup query: '" + query + "'");
   req.subrequest(ocfl_solr + '/select', { args: query }, ( res ) => {
     var solrJson = JSON.parse(res.responseBody);
     if( solrJson['response']['docs'].length === 1 ) {
       var opath = String(solrJson['response']['docs'][0]['path']);
       success(opath);
     } else {
-      not_found("Solr lookup failed for for " + oid);
+      not_found(req, "Solr lookup failed for for " + oid);
     }
   
   });
@@ -266,7 +276,6 @@ function solr_index(req) {
   req.subrequest(req.variables.ocfl_solr + '/select', { args: query }, ( res ) => {
     try {
       var solrJson = JSON.parse(res.responseBody);
-      req.warn("SOLR results: " + JSON.stringify(solrJson));
       if( format === 'json' ) {
         send_json(req, solrJson);
       } else {

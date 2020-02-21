@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased / 1.3.0] - 
 
 - reinstated solr index as a configurable option
+- fixed bug in which spaces in ids passed to solr were not being escaped correctly
+- added content filtering option which only serves payload files matching a pattern
 
 ## [1.2.0] - 2020-02-05
 
