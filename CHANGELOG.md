@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - reinstated solr index as a configurable option
 - fixed bug in which spaces in ids passed to solr were not being escaped correctly
-- added content filtering option which only serves payload files matching a pattern
+- added ocfl_allow variable to control what sort of files are served
+- added ocfl_referrer variable to lock down responses when called outside an iframe
 
 ## [1.2.0] - 2020-02-05
 

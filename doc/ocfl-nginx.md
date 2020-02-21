@@ -109,6 +109,20 @@ If `solr` is chosen, all access to resources will be mediated through a solr loo
 
 If `ocfl_solr` is configured for a repository, the default resolver is `solr`, otherwise it's `pairtree`.
 
+### $ocfl_allow
+
+Only allow content which matches a regular expression to be served, if this is defined.
+
+The regexp is anchored to the end of the path, so
+
+    set $ocfl_allow \.html
+
+will get turned into `/\.html$/` when used to match. This is because `$` isn't allowed or escapable in an nginx variable assignment.
+
+### $ocfl_referrer
+
+Limits responses to only those HTTP requests with the 'Referer' header set to a value which matches. This allows the ocfl server to only deliver content when it's wrapped in an iframe from a page with the right URL.
+
 ## Sample config
 
 Sample config for a server with a single ocfl repository.
