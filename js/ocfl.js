@@ -19,12 +19,22 @@ function ocfl(req) {
   var allow_autoindex = req.variables.ocfl_autoindex || '';
   var ocfl_versions = req.variables.ocfl_versions;
   var ocfl_allow = req.variables.ocfl_allow || '';
+  var ocfl_referrer =  req.variables.ocfl_referrer || '';
+
+  if( ocfl_referrer ) {
+    req.error("Checking referrer against " + ocfl_referrer);
+    var referrer = req.headersIn['Referer'];
+    if( ! referrer || ! referrer.match(ocfl_referrer) ) {
+      not_found(req, "Wrong or missing referrer: " + referrer);
+      return;
+    } else {
+      req.error("ocfl_referrer matches " + referrer);
+    }
+  }
 
   var parts = parse_uri(repo_path, req.uri);
 
   // uri doesn't match repo_path
-
-  req.error("URI parsed: " + JSON.stringify(parts));
 
   if( !parts ) {
     not_found(req, "URI doesn't match " + repo_path + " - check config");
@@ -47,7 +57,7 @@ function ocfl(req) {
   var v = parts['version'];
   var content = parts['content'] || index_file;
 
-  if( ocfl_allow && ( content && !content.match(ocfl_allow + '$')) ) {
+  if( !allow_path(ocfl_allow, content) ) {
     not_found(req, "Content path doesn't match ocfl_allow");
     return;
   }
@@ -63,6 +73,7 @@ function ocfl(req) {
 
 }
 
+
 // serve_path(req, oid, opath, v, content)
 //
 // This is called after the oid has been resolved via a callback
@@ -75,6 +86,7 @@ function serve_path(req, oid, opath, v, content) {
   var index_file = req.variables.ocfl_index_file || '';
   var allow_autoindex = req.variables.ocfl_autoindex || '';
   var ocfl_versions = req.variables.ocfl_versions;
+  var ocfl_allow = req.variables.ocfl_allow || '';
 
   var show_hist = req.args['history'];
 
@@ -108,7 +120,7 @@ function serve_path(req, oid, opath, v, content) {
     return;
   }
   if( allow_autoindex === 'on' && ( content === '' || content.slice(-1) === '/' ) ) {
-    var index = path_autoindex(inv, v, content);
+    var index = path_autoindex(inv, v, content, ocfl_allow);
     if( index ) {
       send_html(req, page_html(oid + '.' + v + '/' + content, index, null));
     } else {
@@ -118,7 +130,7 @@ function serve_path(req, oid, opath, v, content) {
     var vpath = find_version(inv, v, content);
     if( vpath ) {
       var newroute = '/' + opath + '/' + vpath;
-      req.warn("Remapped " + oid + " to " + newroute);
+      req.headersOut['Cache-Control'] = 'no-store';
       req.internalRedirect(newroute);
     } else {
       not_found(req, "Couldn't find content " + content + " in " + oid + "." + v);
@@ -177,6 +189,19 @@ function resolve_oid(req, oid, success) {
     resolve_solr(req, oid, success);
   } else {
     success(resolve_pairtree(oid));
+  }
+}
+
+// allow_path(ocfl_allow, path)
+//
+// applies the ocfl_allow pattern match. Returns true if either ocfl_allow
+// or path are empty / falsy, otherwise returns the value of the match
+
+function allow_path(ocfl_allow, path) {
+  if( path ) {
+    return ( !ocfl_allow || path.match(ocfl_allow + '$'))
+  } else {
+    return true;
   }
 }
 
@@ -367,7 +392,7 @@ function solr_pagination(repo, numFound, start, rows) {
 
 
 
-// path_autoindex(inv, v, path)
+// path_autoindex(inv, v, path, ocfl_allow)
 //
 // for a given version of the OCFL object's inventory, finds all the paths
 // which begin with 'path', and returns a list of the contents, truncating
@@ -384,8 +409,10 @@ function solr_pagination(repo, numFound, start, rows) {
 //
 // Since OCFL only indexes files, an empty result is returned as null, not
 // an empty array.
+//
+// Filters the results by ocfl_allow, if this variable is set
 
-function path_autoindex(inv, v, path) {
+function path_autoindex(inv, v, path, ocfl_allow) {
 
   var state = inv.versions[v]['state'];
   var index = {};
@@ -408,7 +435,9 @@ function path_autoindex(inv, v, path) {
   paths.sort();
 
   if( paths.length > 0 ) {
-    var links = paths.map((p) => { return { href: p, text: p } });
+    var links = paths.filter((p) => allow_path(ocfl_allow, p)).map((p) => {
+      return { href: p, text: p }
+    });
     if( path ) {
       links.unshift({href: '../', text: "[parent]"});
     }
