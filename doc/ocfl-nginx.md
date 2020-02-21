@@ -123,6 +123,8 @@ will get turned into `/\.html$/` when used to match. This is because `$` isn't a
 
 Limits responses to only those HTTP requests with the 'Referer' header set to a value which matches. This allows the ocfl server to only deliver content when it's wrapped in an iframe from a page with the right URL.
 
+Note: for this to work, you must set Cache-Control to `no-store` in the nginx config, otherwise the user will be able to view the cached copy of the content after it's been loaded by the iframe, bypassing the ocfl_referrer check.
+
 ## Sample config
 
 Sample config for a server with a single ocfl repository.

@@ -130,7 +130,11 @@ function serve_path(req, oid, opath, v, content) {
     var vpath = find_version(inv, v, content);
     if( vpath ) {
       var newroute = '/' + opath + '/' + vpath;
-      req.headersOut['Cache-Control'] = 'no-store';
+      if( req.variables.ocfl_referrer ) {
+        // If we're limiting using ocfl_referrer, prevent the browser
+        // from keeping a copy
+        req.headersOut['Cache-Control'] = 'no-store';
+      }
       req.internalRedirect(newroute);
     } else {
       not_found(req, "Couldn't find content " + content + " in " + oid + "." + v);
