@@ -8,9 +8,9 @@ services:
     build: .
     # image: mikelynch/nginx-ocfl:v1. 
     ports:
-      - "8080:8080"
+      - "8089:8089"
     expose:
-      - "8080"
+      - "8089"
     networks:
       - main
     volumes:
@@ -29,3 +29,14 @@ services:
     command: solr-precreate grants
     logging:
         driver: none
+
+  express-aaf:
+    build: ../express-aaf
+    ports:
+      - "8080:8080"
+    expose:
+      - "8080"
+    networks:
+      - "main"
+    
+
